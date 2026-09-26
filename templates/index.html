@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高精度 AI競馬予想システム - Precision Horse Racing AI</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f4f6f9;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .navbar-brand {
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+        .hero-banner {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            padding: 2.5rem 0;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            margin-bottom: 1.5rem;
+        }
+        .card-header {
+            background-color: #ffffff;
+            border-bottom: 2px solid #eef2f5;
+            font-weight: 700;
+            padding: 1rem 1.25rem;
+            border-radius: 12px 12px 0 0 !important;
+        }
+        .badge-confidence {
+            font-size: 1.1rem;
+            padding: 0.5em 0.8em;
+            border-radius: 20px;
+        }
+        .ev-badge {
+            font-weight: 600;
+            padding: 0.35em 0.6em;
+        }
+        .table-horses th {
+            background-color: #f8f9fa;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .rank-1 {
+            background-color: #fff9db !important;
+            font-weight: bold;
+        }
+        .rank-2 {
+            background-color: #f1f3f5 !important;
+        }
+        .rank-3 {
+            background-color: #fff4e6 !important;
+        }
+        .ticket-card {
+            border-left: 4px solid #0d6efd;
+            background-color: #f8f9fa;
+            transition: transform 0.2s;
+        }
+        .ticket-card:hover {
+            transform: translateY(-2px);
+        }
+        .prob-bar {
+            height: 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="#"><i class="fa-solid fa-horse-head me-2 text-warning"></i>AI 競馬的中予想マスター</a>
+            <button class="btn btn-outline-warning btn-sm ms-auto" id="btn-retrain">
+                <i class="fa-solid fa-arrows-rotate me-1"></i> AIモデル再学習
+            </button>
+        </div>
+    </nav>
+
+    <!-- Hero Banner -->
+    <div class="hero-banner text-center">
+        <div class="container">
+            <h1 class="display-5 fw-bold"><i class="fa-solid fa-chart-line me-2"></i>機械学習・統計解析データ予想</h1>
+            <p class="lead mb-0">LightGBM & Random Forest による精密勝ち馬確率・複勝率・買い目計算エンジン</p>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="row">
+
+            <!-- Left Column: Race Selector & Input Form -->
+            <div class="col-lg-4">
+
+                <!-- Race Selection -->
+                <div class="card">
+                    <div class="card-header text-primary">
+                        <i class="fa-solid fa-trophy me-2"></i>対象レース選択
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label text-muted fw-bold">サンプルG1レース</label>
+                            <select id="select-race" class="form-select">
+                                <option value="">-- レースを選択してください --</option>
+                            </select>
+                        </div>
+                        <button id="btn-load-race" class="btn btn-primary w-100 fw-bold">
+                            <i class="fa-solid fa-magnifying-glass me-1"></i> レース読込 & AI予想実行
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Custom Horse Add Form -->
+                <div class="card">
+                    <div class="card-header text-success">
+                        <i class="fa-solid fa-plus-circle me-2"></i>出走馬データ手動追加・調整
+                    </div>
+                    <div class="card-body">
+                        <form id="form-add-horse">
+                            <div class="row g-2 mb-2">
+                                <div class="col-4">
+                                    <label class="form-label small">馬番</label>
+                                    <input type="number" id="input-num" class="form-control form-control-sm" min="1" max="18" value="9" required>
+                                </div>
+                                <div class="col-8">
+                                    <label class="form-label small">馬名</label>
+                                    <input type="text" id="input-name" class="form-control form-control-sm" value="カスタムスター" required>
+                                </div>
+                            </div>
+                            <div class="row g-2 mb-2">
+                                <div class="col-6">
+                                    <label class="form-label small">騎手</label>
+                                    <input type="text" id="input-jockey" class="form-control form-control-sm" value="ルメール">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label small">単勝オッズ</label>
+                                    <input type="number" step="0.1" id="input-odds" class="form-control form-control-sm" value="4.5" required>
+                                </div>
+                            </div>
+                            <div class="row g-2 mb-3">
+                                <div class="col-6">
+                                    <label class="form-label small">過去スピード指数 (50-110)</label>
+                                    <input type="number" id="input-speed" class="form-control form-control-sm" value="92.0" required>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label small">騎手勝率 (0.0-1.0)</label>
+                                    <input type="number" step="0.01" id="input-jockey-win" class="form-control form-control-sm" value="0.25" required>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-outline-success btn-sm w-100 fw-bold">
+                                <i class="fa-solid fa-plus me-1"></i> この馬を出走表に追加
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Right Column: Predictions & Recommended Tickets -->
+            <div class="col-lg-8">
+
+                <!-- Race Info & Confidence Header -->
+                <div class="card">
+                    <div class="card-body d-flex align-items-center justify-content-between flex-wrap">
+                        <div>
+                            <h3 id="display-race-name" class="mb-1 text-dark fw-bold">レースが選択されていません</h3>
+                            <p id="display-race-meta" class="text-muted mb-0 small">左メニューよりレースを選択してください。</p>
+                        </div>
+                        <div id="confidence-container" class="mt-2 mt-md-0 d-none">
+                            <span class="text-muted small d-block mb-1 text-end">AI 予想信頼度</span>
+                            <span id="display-confidence" class="badge bg-danger badge-confidence">85%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Predictions Table -->
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="fa-solid fa-ranking-star me-2 text-warning"></i>AI 予想分析結果 (勝率・複勝率・期待値)</span>
+                        <button id="btn-recalculate" class="btn btn-sm btn-dark d-none">
+                            <i class="fa-solid fa-calculator me-1"></i> 再計算
+                        </button>
+                    </div>
+                    <div class="card-body p-0 table-responsive">
+                        <table class="table table-hover align-middle mb-0 table-horses">
+                            <thead>
+                                <tr>
+                                    <th class="text-center" style="width: 8%;">馬番</th>
+                                    <th style="width: 24%;">馬名 / 騎手</th>
+                                    <th class="text-center" style="width: 12%;">オッズ</th>
+                                    <th style="width: 24%;">勝率 (Win Prob)</th>
+                                    <th style="width: 20%;">複勝率 (Place Prob)</th>
+                                    <th class="text-center" style="width: 12%;">単勝期待値</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody-predictions">
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-4">レースを読み込むと AI 予測結果が表示されます。</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Recommended Tickets Section -->
+                <div class="card">
+                    <div class="card-header text-dark">
+                        <i class="fa-solid fa-ticket me-2 text-success"></i>AI 推奨買い目カード (Expected Value MAX)
+                    </div>
+                    <div class="card-body">
+
+                        <!-- Tabs for Ticket Types -->
+                        <ul class="nav nav-pills mb-3" id="ticket-tab" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active fw-bold" id="tab-win" data-bs-toggle="pill" data-bs-target="#content-win" type="button">単勝 (Win)</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link fw-bold" id="tab-place" data-bs-toggle="pill" data-bs-target="#content-place" type="button">複勝 (Place)</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link fw-bold" id="tab-exacta" data-bs-toggle="pill" data-bs-target="#content-exacta" type="button">馬単 (Exacta)</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link fw-bold" id="tab-trio" data-bs-toggle="pill" data-bs-target="#content-trio" type="button">3連複 (Trio)</button>
+                            </li>
+                        </ul>
+
+                        <!-- Tab Contents -->
+                        <div class="tab-content" id="ticket-tab-content">
+                            <!-- Win -->
+                            <div class="tab-pane fade show active" id="content-win">
+                                <div id="container-win-tickets" class="row g-2">
+                                    <div class="text-muted small">推奨買い目がここに表示されます。</div>
+                                </div>
+                            </div>
+                            <!-- Place -->
+                            <div class="tab-pane fade" id="content-place">
+                                <div id="container-place-tickets" class="row g-2">
+                                    <div class="text-muted small">推奨買い目がここに表示されます。</div>
+                                </div>
+                            </div>
+                            <!-- Exacta -->
+                            <div class="tab-pane fade" id="content-exacta">
+                                <div id="container-exacta-tickets" class="row g-2">
+                                    <div class="text-muted small">推奨買い目がここに表示されます。</div>
+                                </div>
+                            </div>
+                            <!-- Trio -->
+                            <div class="tab-pane fade" id="content-trio">
+                                <div id="container-trio-tickets" class="row g-2">
+                                    <div class="text-muted small">推奨買い目がここに表示されます。</div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/app.js"></script>
+</body>
+</html>

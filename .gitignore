@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+*.pyo
+*.log
+model_cache.pkl
+/home/jules/verification/
