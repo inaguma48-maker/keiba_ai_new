@@ -219,51 +219,134 @@ def fetch_and_parse_jra_url(url: str) -> RaceInfo:
 
         soup = BeautifulSoup(html, "html.parser")
 
-        title_tag = soup.find("title")
-        race_name = title_tag.text.strip() if title_tag else "JRA取り込みレース"
-        if "シリウス" in url or "シリウス" in html:
-            race_name = "第28回 シリウスステークス (G3)"
+        # Metadata parsing
+        race_name = "JRA取り込みレース"
+        race_name_el = soup.find("span", class_="race_name") or soup.find("h2") or soup.find("title")
+        if race_name_el:
+            cleaned_title = re.sub(r'\s+', ' ', race_name_el.text).strip()
+            if cleaned_title and cleaned_title != "出馬表 JRA":
+                race_name = cleaned_title
+
+        track_name = "東京"
+        for t in ["中山", "阪神", "京都", "中京", "新潟", "福島", "小倉", "札幌", "函館", "東京"]:
+            if t in html:
+                track_name = t
+                break
+
+        surface_type = "ダート" if ("ダート" in html or "ダ1" in html or "ダ2" in html) else "芝"
+
+        dist_match = (
+            re.search(r'コース[：:]?\s*([\d,]+)', html) or
+            re.search(r'([\d,]+)\s*<span[^>]*>メートル', html) or
+            re.search(r'(\d{3,4})\s*メートル', html) or
+            re.search(r'(\d{3,4})\s*m', html)
+        )
+        distance = int(dist_match.group(1).replace(",", "")) if dist_match else 2000
 
         horses: List[HorseEntry] = []
-        rows = soup.find_all("tr", class_=re.compile(r'HorseList|RaceTable01|shutuba')) or soup.find_all("tr")
 
-        for tr in rows:
-            tds = [td.text.strip() for td in tr.find_all(["td", "th"])]
-            if len(tds) >= 4:
-                num_match = re.search(r'^\d+$', tds[0]) or re.search(r'^\d+$', tds[1])
-                if num_match:
-                    h_num = int(num_match.group(0))
-                    h_name = None
-                    for td in tds[1:5]:
-                        clean_td = clean_horse_name(td)
-                        if len(clean_td) >= 2 and clean_td not in ["芝", "ダ", "良", "重", "牡", "牝"]:
-                            h_name = clean_td
-                            break
+        # Direct parsing for official JRA racecard structure (td.num and td.horse)
+        for tr in soup.find_all("tr"):
+            num_td = tr.find("td", class_="num")
+            horse_td = tr.find("td", class_="horse")
+            if not (num_td and horse_td):
+                continue
 
-                    if h_name and h_num:
-                        horses.append(HorseEntry(
-                            horse_number=h_num,
-                            horse_name=h_name,
-                            jockey_name="武豊" if h_num == 1 else "騎手",
-                            trainer_name="JRA厩舎",
-                            age=4,
-                            weight=500.0,
-                            impost=57.0,
-                            past_speed_rating=92.0,
-                            past_win_rate=0.35,
-                            jockey_win_rate=0.22,
-                            trainer_win_rate=0.18,
-                            track_aptitude=0.88,
-                            odds=3.5 if h_num == 1 else float(h_num * 2.5)
-                        ))
+            num_text = num_td.text.strip()
+            if not num_text.isdigit():
+                continue
+            h_num = int(num_text)
+
+            # Horse Name
+            a_tag = horse_td.find("a")
+            if a_tag:
+                h_name = clean_horse_name(a_tag.text.strip())
+            else:
+                first_line = horse_td.text.strip().split("\n")[0]
+                h_name = clean_horse_name(re.sub(r'[\d\.\(\)番人気]', '', first_line).strip())
+
+            if not h_name or len(h_name) < 2:
+                continue
+
+            # Odds & Popularity
+            horse_full = horse_td.text.strip()
+            odds_match = re.search(r'([1-9]\d*\.\d+)\s*\(\d+番?人気\)', horse_full)
+            odds = float(odds_match.group(1)) if odds_match else max(1.1, float(h_num * 2.5))
+
+            # Jockey & Impost
+            jockey_td = tr.find("td", class_="jockey") or tr.find("td", class_=lambda c: c and "jockey" in c)
+            jockey_name = "騎手"
+            impost = 57.0
+            if jockey_td:
+                j_text = jockey_td.text.strip()
+                imp_match = re.search(r'(\d{2}\.\d)kg', j_text)
+                if imp_match:
+                    impost = float(imp_match.group(1))
+                lines = [l.strip() for l in j_text.split() if l.strip()]
+                for l in lines:
+                    if not re.search(r'牡|牝|セ|\d|kg|S|M|L', l) and len(l) <= 6:
+                        jockey_name = l
+                        break
+
+            speed_rating = 88.0 + (15.0 / max(odds, 1.1))
+            jockey_win = 0.25 if jockey_name in ["川田", "ルメール", "C.ルメール", "武豊", "武 豊", "坂井", "松山", "岩田望", "横山武"] else 0.15
+
+            horses.append(HorseEntry(
+                horse_number=h_num,
+                horse_name=h_name,
+                jockey_name=jockey_name,
+                trainer_name="JRA厩舎",
+                age=4,
+                weight=490.0,
+                impost=impost,
+                past_speed_rating=speed_rating,
+                past_win_rate=0.35,
+                jockey_win_rate=jockey_win,
+                trainer_win_rate=0.18,
+                track_aptitude=0.88,
+                odds=max(1.1, odds)
+            ))
+
+        # Fallback to general table rows
+        if not horses:
+            rows = soup.find_all("tr", class_=re.compile(r'HorseList|RaceTable01|shutuba')) or soup.find_all("tr")
+            for tr in rows:
+                tds = [td.text.strip() for td in tr.find_all(["td", "th"])]
+                if len(tds) >= 4:
+                    num_match = re.search(r'^\d+$', tds[0]) or re.search(r'^\d+$', tds[1])
+                    if num_match:
+                        h_num = int(num_match.group(0))
+                        h_name = None
+                        for td in tds[1:5]:
+                            clean_td = clean_horse_name(td)
+                            if len(clean_td) >= 2 and clean_td not in ["芝", "ダ", "良", "重", "牡", "牝"]:
+                                h_name = clean_td
+                                break
+
+                        if h_name and h_num:
+                            horses.append(HorseEntry(
+                                horse_number=h_num,
+                                horse_name=h_name,
+                                jockey_name="武豊" if h_num == 1 else "騎手",
+                                trainer_name="JRA厩舎",
+                                age=4,
+                                weight=500.0,
+                                impost=57.0,
+                                past_speed_rating=92.0,
+                                past_win_rate=0.35,
+                                jockey_win_rate=0.22,
+                                trainer_win_rate=0.18,
+                                track_aptitude=0.88,
+                                odds=3.5 if h_num == 1 else float(h_num * 2.5)
+                            ))
 
         if len(horses) >= 3:
             return RaceInfo(
                 race_id=f"JRA_IMP_{uuid.uuid4().hex[:8]}",
                 race_name=race_name,
-                track_name="中京" if "シリウス" in race_name else "東京",
-                surface_type="ダート" if "シリウス" in race_name else "芝",
-                distance=1900 if "シリウス" in race_name else 2000,
+                track_name=track_name,
+                surface_type=surface_type,
+                distance=distance,
                 track_condition="良",
                 weather="晴",
                 horses=horses

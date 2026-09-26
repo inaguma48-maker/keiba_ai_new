@@ -125,6 +125,18 @@ def test_jra_cp932_encoding_url_import():
     assert race.race_name is not None
     assert len(race.horses) >= 1
 
+def test_jra_sprinters_stakes_url_import():
+    sprinters_url = "https://www.jra.go.jp/JRADB/accessD.html?CNAME=pw01dde0106202604091120260927/5A"
+    race = fetch_and_parse_jra_url(sprinters_url)
+    assert race is not None
+    assert "スプリンターズ" in race.race_name or "JRA" in race.race_name
+    assert race.track_name == "中山"
+    assert race.surface_type == "芝"
+    assert race.distance == 1200
+    assert len(race.horses) == 16
+    assert race.horses[0].horse_name == "レッドモンレーヴ"
+    assert race.horses[8].horse_name == "スターアニス"
+
 def test_flask_api_endpoints():
     client = app.test_client()
 
