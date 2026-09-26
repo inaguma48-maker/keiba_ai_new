@@ -9,6 +9,7 @@ from src.models import RaceInfo, HorseEntry
 from src.data import extract_features, generate_synthetic_historical_data, get_sample_races
 from src.predictor import HorseRacePredictor
 from src.strategy import calculate_betting_recommendations
+from src.jra_importer import parse_jra_text, fetch_and_parse_jra_url
 from app import app
 
 def test_data_models():
@@ -62,6 +63,13 @@ def test_strategy_recommendations():
     assert "trio_tickets" in recs
     assert "confidence_score" in recs
 
+def test_jra_parser():
+    text = "1 ディープスター ルメール 57.0 2.5\n2 コントレイル 川田 57.0 4.0"
+    race = parse_jra_text(text, race_name_override="JRAテスト")
+    assert race.race_name == "JRAテスト"
+    assert len(race.horses) == 2
+    assert race.horses[0].horse_name == "ディープスター"
+
 def test_flask_api_endpoints():
     client = app.test_client()
 
@@ -90,3 +98,14 @@ def test_flask_api_endpoints():
     pred_data = res_pred.get_json()
     assert pred_data["status"] == "success"
     assert len(pred_data["predictions"]) == len(sample_race.horses)
+
+    # Test POST /api/import_jra
+    res_import = client.post(
+        "/api/import_jra",
+        data=json.dumps({"text_content": "1 サンプル馬 ルメール 57.0 3.0"}),
+        content_type="application/json"
+    )
+    assert res_import.status_code == 200
+    import_data = res_import.get_json()
+    assert import_data["status"] == "success"
+    assert "predictions" in import_data

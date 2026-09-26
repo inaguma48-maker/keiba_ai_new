@@ -6,6 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const btnRecalculate = document.getElementById("btn-recalculate");
     const btnRetrain = document.getElementById("btn-retrain");
     const formAddHorse = document.getElementById("form-add-horse");
+    const formImportJra = document.getElementById("form-import-jra");
 
     const displayRaceName = document.getElementById("display-race-name");
     const displayRaceMeta = document.getElementById("display-race-meta");
@@ -56,6 +57,49 @@ document.addEventListener("DOMContentLoaded", () => {
     btnRecalculate.addEventListener("click", () => {
         if (currentRace) {
             runPrediction(currentRace);
+        }
+    });
+
+    // JRA Racecard Import Form Submit
+    formImportJra.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const urlInput = document.getElementById("input-jra-url").value.trim();
+        const textInput = document.getElementById("input-jra-text").value.trim();
+
+        if (!urlInput && !textInput) {
+            alert("URL または 出馬表テキストを入力してください。");
+            return;
+        }
+
+        tbodyPredictions.innerHTML = '<tr><td colspan="6" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-muted">JRA出馬表取り込み＆分析中...</div></td></tr>';
+
+        try {
+            const res = await fetch("/api/import_jra", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    url: urlInput || null,
+                    text_content: textInput || null
+                })
+            });
+            const result = await res.json();
+
+            if (result.status === "success") {
+                currentRace = result.race;
+                displayRaceName.textContent = result.race.race_name;
+                displayRaceMeta.textContent = `${result.race.track_name}競馬場 | ${result.race.surface_type}${result.race.distance}m | 馬場: ${result.race.track_condition} | 天候: ${result.race.weather}`;
+                renderPredictions(result.predictions);
+                renderRecommendations(result.recommendations);
+
+                confidenceContainer.classList.remove("d-none");
+                displayConfidence.textContent = `${result.recommendations.confidence_score}%`;
+                btnRecalculate.classList.remove("d-none");
+            } else {
+                alert("JRA取り込みエラー: " + result.message);
+            }
+        } catch (err) {
+            console.error(err);
+            alert("取り込み通信に失敗しました。");
         }
     });
 

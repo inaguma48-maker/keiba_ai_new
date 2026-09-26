@@ -100,17 +100,39 @@
     <div class="container">
         <div class="row">
 
-            <!-- Left Column: Race Selector & Input Form -->
+            <!-- Left Column: Race Selector & JRA Import & Input Form -->
             <div class="col-lg-4">
 
-                <!-- Race Selection -->
+                <!-- JRA Racecard Import Section -->
+                <div class="card border-primary">
+                    <div class="card-header bg-primary text-white">
+                        <i class="fa-solid fa-cloud-arrow-down me-2"></i>JRA 出馬表 自動取り込み
+                    </div>
+                    <div class="card-body">
+                        <form id="form-import-jra">
+                            <div class="mb-2">
+                                <label class="form-label small fw-bold">JRA レースURL 入力</label>
+                                <input type="url" id="input-jra-url" class="form-control form-control-sm" placeholder="https://www.jra.go.jp/...">
+                            </div>
+                            <div class="text-center my-1 text-muted small">- または 出馬表テキスト貼り付け -</div>
+                            <div class="mb-2">
+                                <textarea id="input-jra-text" class="form-control form-control-sm" rows="3" placeholder="馬番 馬名 騎手 斤量 オッズ などを貼り付け"></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-success btn-sm w-100 fw-bold">
+                                <i class="fa-solid fa-download me-1"></i> JRA出馬表を取り込んで予想
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Sample Race Selection -->
                 <div class="card">
                     <div class="card-header text-primary">
-                        <i class="fa-solid fa-trophy me-2"></i>対象レース選択
+                        <i class="fa-solid fa-trophy me-2"></i>サンプルG1レース選択
                     </div>
                     <div class="card-body">
                         <div class="mb-3">
-                            <label class="form-label text-muted fw-bold">サンプルG1レース</label>
+                            <label class="form-label text-muted fw-bold">登録レース一覧</label>
                             <select id="select-race" class="form-select">
                                 <option value="">-- レースを選択してください --</option>
                             </select>

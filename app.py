@@ -9,6 +9,7 @@ from src.models import RaceInfo, HorseEntry
 from src.data import get_sample_races, generate_synthetic_historical_data
 from src.predictor import HorseRacePredictor
 from src.strategy import calculate_betting_recommendations
+from src.jra_importer import parse_jra_text, fetch_and_parse_jra_url
 
 app = Flask(__name__)
 predictor = HorseRacePredictor()
@@ -40,6 +41,34 @@ def get_race_detail(race_id: str):
     if not race:
         return jsonify({"status": "error", "message": "Race not found"}), 404
     return jsonify({"status": "success", "race": race.to_dict()})
+
+@app.route("/api/import_jra", methods=["POST"])
+def import_jra():
+    data = request.get_json() or {}
+    url = data.get("url")
+    text_content = data.get("text_content")
+    race_name = data.get("race_name")
+
+    try:
+        if url:
+            race = fetch_and_parse_jra_url(url)
+        elif text_content:
+            race = parse_jra_text(text_content, race_name_override=race_name)
+        else:
+            return jsonify({"status": "error", "message": "url または text_content が必要です。"}), 400
+
+        predictions = predictor.predict_race(race)
+        recommendations = calculate_betting_recommendations(predictions)
+
+        return jsonify({
+            "status": "success",
+            "message": "JRA出馬表を取り込みました。",
+            "race": race.to_dict(),
+            "predictions": predictions,
+            "recommendations": recommendations
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route("/api/predict", methods=["POST"])
 def predict_race():
