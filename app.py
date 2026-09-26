@@ -3,17 +3,26 @@ Flask API Web Application for Horse Racing AI Prediction System.
 """
 
 from flask import Flask, jsonify, request, render_template
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 from src.models import RaceInfo, HorseEntry
 from src.data import get_sample_races, generate_synthetic_historical_data
 from src.predictor import HorseRacePredictor
 from src.strategy import calculate_betting_recommendations
 from src.jra_importer import parse_jra_text, fetch_and_parse_jra_url
+from src.db import init_db, save_race, get_race_by_id, list_all_races
 
 app = Flask(__name__)
 predictor = HorseRacePredictor()
+
+# Initialize Database
+init_db()
+
+# Pre-populate sample races in DB if empty
 sample_races_cache = {r.race_id: r for r in get_sample_races()}
+for s_race in sample_races_cache.values():
+    if not get_race_by_id(s_race.race_id):
+        save_race(s_race)
 
 @app.route("/")
 def index():
@@ -21,23 +30,17 @@ def index():
 
 @app.route("/api/races", methods=["GET"])
 def list_races():
-    races_summary = []
-    for r_id, r in sample_races_cache.items():
-        races_summary.append({
-            "race_id": r.race_id,
-            "race_name": r.race_name,
-            "track_name": r.track_name,
-            "surface_type": r.surface_type,
-            "distance": r.distance,
-            "track_condition": r.track_condition,
-            "weather": r.weather,
-            "horse_count": len(r.horses)
-        })
-    return jsonify({"status": "success", "races": races_summary})
+    try:
+        db_races = list_all_races()
+        return jsonify({"status": "success", "races": db_races})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route("/api/races/<race_id>", methods=["GET"])
 def get_race_detail(race_id: str):
-    race = sample_races_cache.get(race_id)
+    race = get_race_by_id(race_id)
+    if not race:
+        race = sample_races_cache.get(race_id)
     if not race:
         return jsonify({"status": "error", "message": "Race not found"}), 404
     return jsonify({"status": "success", "race": race.to_dict()})
@@ -57,12 +60,15 @@ def import_jra():
         else:
             return jsonify({"status": "error", "message": "url または text_content が必要です。"}), 400
 
+        # Save to SQLite Database for persistent storage
+        save_race(race)
+
         predictions = predictor.predict_race(race)
         recommendations = calculate_betting_recommendations(predictions)
 
         return jsonify({
             "status": "success",
-            "message": "JRA出馬表を取り込みました。",
+            "message": "JRA出馬表を取り込み、データベースに保存しました。",
             "race": race.to_dict(),
             "predictions": predictions,
             "recommendations": recommendations
@@ -105,6 +111,9 @@ def predict_race():
             weather=data.get("weather", "晴"),
             horses=horses
         )
+
+        # Save to SQLite DB
+        save_race(race)
 
         predictions = predictor.predict_race(race)
         recommendations = calculate_betting_recommendations(predictions)

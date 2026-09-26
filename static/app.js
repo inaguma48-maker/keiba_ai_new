@@ -14,21 +14,24 @@ document.addEventListener("DOMContentLoaded", () => {
     const displayConfidence = document.getElementById("display-confidence");
     const tbodyPredictions = document.getElementById("tbody-predictions");
 
-    // Load available sample races on start
-    loadSampleRaces();
+    // Load available races (including DB saved races) on start
+    loadRaces();
 
-    async function loadSampleRaces() {
+    async function loadRaces(selectedId = null) {
         try {
             const res = await fetch("/api/races");
             const data = await res.json();
             if (data.status === "success") {
-                selectRace.innerHTML = '<option value="">-- レースを選択してください --</option>';
+                selectRace.innerHTML = '<option value="">-- 保存・サンプルレースを選択 --</option>';
                 data.races.forEach(r => {
                     const opt = document.createElement("option");
                     opt.value = r.race_id;
-                    opt.textContent = `${r.race_name} (${r.track_name} ${r.surface_type}${r.distance}m / ${r.horse_count}頭)`;
+                    opt.textContent = `[DB保存] ${r.race_name} (${r.track_name} ${r.surface_type}${r.distance}m / ${r.horse_count}頭)`;
                     selectRace.appendChild(opt);
                 });
+                if (selectedId) {
+                    selectRace.value = selectedId;
+                }
             }
         } catch (err) {
             console.error("Failed to fetch races:", err);
@@ -71,7 +74,7 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        tbodyPredictions.innerHTML = '<tr><td colspan="6" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-muted">JRA出馬表取り込み＆分析中...</div></td></tr>';
+        tbodyPredictions.innerHTML = '<tr><td colspan="6" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-muted">JRA出馬表取り込み＆DB保存＆分析中...</div></td></tr>';
 
         try {
             const res = await fetch("/api/import_jra", {
@@ -87,13 +90,16 @@ document.addEventListener("DOMContentLoaded", () => {
             if (result.status === "success") {
                 currentRace = result.race;
                 displayRaceName.textContent = result.race.race_name;
-                displayRaceMeta.textContent = `${result.race.track_name}競馬場 | ${result.race.surface_type}${result.race.distance}m | 馬場: ${result.race.track_condition} | 天候: ${result.race.weather}`;
+                displayRaceMeta.textContent = `${result.race.track_name}競馬場 | ${result.race.surface_type}${result.race.distance}m | 馬場: ${result.race.track_condition} | 天候: ${result.race.weather} (DB保管完了)`;
                 renderPredictions(result.predictions);
                 renderRecommendations(result.recommendations);
 
                 confidenceContainer.classList.remove("d-none");
                 displayConfidence.textContent = `${result.recommendations.confidence_score}%`;
                 btnRecalculate.classList.remove("d-none");
+
+                // Refresh race selection dropdown with newly saved DB race
+                await loadRaces(result.race.race_id);
             } else {
                 alert("JRA取り込みエラー: " + result.message);
             }
@@ -124,6 +130,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 confidenceContainer.classList.remove("d-none");
                 displayConfidence.textContent = `${result.recommendations.confidence_score}%`;
                 btnRecalculate.classList.remove("d-none");
+
+                // Refresh race list dropdown
+                await loadRaces(raceData.race_id);
             } else {
                 alert("予想の実行に失敗しました: " + result.message);
             }
@@ -277,7 +286,6 @@ document.addEventListener("DOMContentLoaded", () => {
             odds: odds
         };
 
-        // Replace if exists, else add
         const existingIdx = currentRace.horses.findIndex(h => h.horse_number === horseNum);
         if (existingIdx >= 0) {
             currentRace.horses[existingIdx] = newHorse;

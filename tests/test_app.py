@@ -9,7 +9,8 @@ from src.models import RaceInfo, HorseEntry
 from src.data import extract_features, generate_synthetic_historical_data, get_sample_races
 from src.predictor import HorseRacePredictor
 from src.strategy import calculate_betting_recommendations
-from src.jra_importer import parse_jra_text, fetch_and_parse_jra_url
+from src.jra_importer import parse_jra_text, fetch_and_parse_jra_url, clean_horse_name
+from src.db import init_db, save_race, get_race_by_id, list_all_races
 from app import app
 
 def test_data_models():
@@ -22,6 +23,27 @@ def test_data_models():
     rd = race.to_dict()
     assert rd["race_id"] == "R01"
     assert len(rd["horses"]) == 1
+
+def test_db_persistence():
+    init_db()
+    horse = HorseEntry(1, "アイサンサン", "万代岡", "調教師", 4, 480, 57.0, 92.0, 0.35, 0.2, 0.18, 0.85, 5.0)
+    test_race = RaceInfo("TEST_DB_RACE_01", "テスト保管レース", "阪神", "芝", 1600, "良", "晴", [horse])
+
+    save_race(test_race)
+    loaded = get_race_by_id("TEST_DB_RACE_01")
+    assert loaded is not None
+    assert loaded.race_name == "テスト保管レース"
+    assert loaded.horses[0].horse_name == "アイサンサン"
+
+    races = list_all_races()
+    assert any(r["race_id"] == "TEST_DB_RACE_01" for r in races)
+
+def test_clean_horse_name():
+    raw_name_1 = "アイサンサン.(1番人気)"
+    assert clean_horse_name(raw_name_1) == "アイサンサン"
+
+    raw_name_2 = "サンデーヒルズ橋田宜長(栗東)父：キズナ"
+    assert clean_horse_name(raw_name_2) == "サンデーヒルズ橋田宜長"
 
 def test_feature_extraction():
     sample_race = get_sample_races()[0]
