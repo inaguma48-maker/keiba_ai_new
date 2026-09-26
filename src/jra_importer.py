@@ -172,7 +172,7 @@ def parse_jra_text(text_content: str, race_name_override: Optional[str] = None) 
 def fetch_and_parse_jra_url(url: str) -> RaceInfo:
     """
     Fetches HTML from a JRA or netkeiba racecard URL and parses it.
-    Specially crafted to handle netkeiba race IDs and JRA official URL patterns.
+    Specially crafted to handle netkeiba race IDs and JRA official URL patterns (CP932/Shift_JIS encoding).
     """
     req = urllib.request.Request(
         url,
@@ -183,7 +183,23 @@ def fetch_and_parse_jra_url(url: str) -> RaceInfo:
 
     try:
         with urllib.request.urlopen(req, timeout=8) as response:
-            html = response.read().decode("euc-jp" if "netkeiba" in url else "utf-8", errors="ignore")
+            raw_data = response.read()
+
+        # JRA uses Shift_JIS / CP932 encoding. Try multiple Japanese encodings to prevent mojibake.
+        html = None
+        encodings_to_try = ["cp932", "shift_jis", "euc-jp", "utf-8"]
+        if "netkeiba" in url:
+            encodings_to_try = ["euc-jp", "utf-8", "cp932", "shift_jis"]
+
+        for enc in encodings_to_try:
+            try:
+                html = raw_data.decode(enc)
+                break
+            except Exception:
+                continue
+
+        if html is None:
+            html = raw_data.decode("utf-8", errors="ignore")
 
         soup = BeautifulSoup(html, "html.parser")
 

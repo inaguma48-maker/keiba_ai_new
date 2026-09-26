@@ -96,6 +96,13 @@ def test_sirius_stakes_url_import():
     assert race is not None
     assert len(race.horses) >= 3
 
+def test_jra_cp932_encoding_url_import():
+    jra_official_url = "https://www.jra.go.jp/JRADB/accessD.html?CNAME=pw01dde0109202604081120260926/08"
+    race = fetch_and_parse_jra_url(jra_official_url)
+    assert race is not None
+    assert race.race_name is not None
+    assert len(race.horses) >= 1
+
 def test_flask_api_endpoints():
     client = app.test_client()
 
