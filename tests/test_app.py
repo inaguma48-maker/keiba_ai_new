@@ -70,6 +70,32 @@ def test_jra_parser():
     assert len(race.horses) == 2
     assert race.horses[0].horse_name == "ディープスター"
 
+def test_sirius_stakes_parser():
+    sirius_text = """
+    第28回 シリウスステークス (G3) 中京 ダート1900m 良
+    1 ヤマニンウルス 牡4 武豊 57.0 1.8
+    2 ハギノピリナ 牝5 藤岡佑 54.0 12.5
+    3 オメガギネス 牡4 岩田望 57.5 3.5
+    4 カンピオーネ 牡5 横山武 56.0 15.0
+    5 ヴァンヤール 牡6 荻野極 57.0 8.2
+    6 サンライズウルス 牡6 松山 57.0 22.0
+    7 サンマルパトロール 牡4 デムーロ 55.0 6.8
+    8 フタイテンロック 牡5 秋山稔 54.0 45.0
+    """
+    race = parse_jra_text(sirius_text)
+    assert "シリウス" in race.race_name
+    assert race.surface_type == "ダート"
+    assert race.distance == 1900
+    assert len(race.horses) == 8
+    assert race.horses[0].horse_name == "ヤマニンウルス"
+    assert race.horses[0].jockey_name == "武豊"
+
+def test_sirius_stakes_url_import():
+    url = "https://race.netkeiba.com/race/shutuba.html?race_id=202407040811"
+    race = fetch_and_parse_jra_url(url)
+    assert race is not None
+    assert len(race.horses) >= 3
+
 def test_flask_api_endpoints():
     client = app.test_client()
 
@@ -99,13 +125,16 @@ def test_flask_api_endpoints():
     assert pred_data["status"] == "success"
     assert len(pred_data["predictions"]) == len(sample_race.horses)
 
-    # Test POST /api/import_jra
+    # Test POST /api/import_jra for Sirius Stakes
     res_import = client.post(
         "/api/import_jra",
-        data=json.dumps({"text_content": "1 サンプル馬 ルメール 57.0 3.0"}),
+        data=json.dumps({
+            "text_content": "第28回 シリウスステークス (G3) 中京 ダ1900m\n1 ヤマニンウルス 武豊 57.0 1.8\n2 オメガギネス 岩田望 57.5 3.5"
+        }),
         content_type="application/json"
     )
     assert res_import.status_code == 200
     import_data = res_import.get_json()
     assert import_data["status"] == "success"
     assert "predictions" in import_data
+    assert "シリウス" in import_data["race"]["race_name"]
