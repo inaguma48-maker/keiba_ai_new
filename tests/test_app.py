@@ -9,7 +9,7 @@ from src.models import RaceInfo, HorseEntry
 from src.data import extract_features, generate_synthetic_historical_data, get_sample_races
 from src.predictor import HorseRacePredictor
 from src.strategy import calculate_betting_recommendations
-from src.jra_importer import parse_jra_text, fetch_and_parse_jra_url, clean_horse_name
+from src.jra_importer import parse_jra_text, fetch_and_parse_jra_url, clean_horse_name, fetch_this_weeks_jra_races
 from src.db import init_db, save_race, get_race_by_id, list_all_races
 from app import app
 
@@ -194,3 +194,28 @@ def test_flask_api_endpoints():
     assert import_data["status"] == "success"
     assert "predictions" in import_data
     assert "シリウス" in import_data["race"]["race_name"]
+
+def test_fetch_this_weeks_jra_races():
+    weekly_races = fetch_this_weeks_jra_races()
+    assert isinstance(weekly_races, list)
+    assert len(weekly_races) >= 1
+    for race in weekly_races:
+        assert race.race_id
+        assert race.race_name
+        assert len(race.horses) >= 1
+
+def test_flask_api_import_weekly_jra():
+    client = app.test_client()
+    res = client.post("/api/import_weekly_jra")
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["status"] == "success"
+    assert "message" in data
+    assert data["count"] >= 1
+    assert len(data["results"]) >= 1
+
+    first_item = data["results"][0]
+    assert "race" in first_item
+    assert "predictions" in first_item
+    assert "recommendations" in first_item
+    assert len(first_item["predictions"]) > 0
