@@ -7,12 +7,71 @@ document.addEventListener("DOMContentLoaded", () => {
     const btnRetrain = document.getElementById("btn-retrain");
     const formAddHorse = document.getElementById("form-add-horse");
     const formImportJra = document.getElementById("form-import-jra");
+    const btnFetchWeekly = document.getElementById("btn-fetch-weekly");
+    const btnFetchWeeklySide = document.getElementById("btn-fetch-weekly-side");
 
     const displayRaceName = document.getElementById("display-race-name");
     const displayRaceMeta = document.getElementById("display-race-meta");
     const confidenceContainer = document.getElementById("confidence-container");
     const displayConfidence = document.getElementById("display-confidence");
     const tbodyPredictions = document.getElementById("tbody-predictions");
+
+    // Handle one-click weekly JRA data fetch
+    async function handleFetchWeeklyJra() {
+        const originalBtnText = btnFetchWeekly ? btnFetchWeekly.innerHTML : "";
+        if (btnFetchWeekly) {
+            btnFetchWeekly.disabled = true;
+            btnFetchWeekly.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> JRA公式から今週の出馬表を一括取得・AI予想中...';
+        }
+        if (btnFetchWeeklySide) {
+            btnFetchWeeklySide.disabled = true;
+            btnFetchWeeklySide.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> 取得中...';
+        }
+
+        tbodyPredictions.innerHTML = '<tr><td colspan="6" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-muted fw-bold">JRAホームページから今週のレース出馬表を取得・データベース保存・AI全予想計算中...</div></td></tr>';
+
+        try {
+            const res = await fetch("/api/import_weekly_jra", { method: "POST" });
+            const data = await res.json();
+
+            if (data.status === "success" && data.results && data.results.length > 0) {
+                // Refresh race dropdown and select the first race
+                await loadRaces(data.results[0].race.race_id);
+
+                // Render the first imported race's predictions
+                const firstResult = data.results[0];
+                currentRace = firstResult.race;
+                displayRaceName.textContent = firstResult.race.race_name;
+                displayRaceMeta.textContent = `${firstResult.race.track_name}競馬場 | ${firstResult.race.surface_type}${firstResult.race.distance}m | 馬場: ${firstResult.race.track_condition} | 天候: ${firstResult.race.weather} (今週のJRA出馬表一括取得完了: ${data.count}レース)`;
+
+                renderPredictions(firstResult.predictions);
+                renderRecommendations(firstResult.recommendations);
+
+                confidenceContainer.classList.remove("d-none");
+                displayConfidence.textContent = `${firstResult.recommendations.confidence_score}%`;
+                btnRecalculate.classList.remove("d-none");
+
+                alert(`【成功】${data.message}\nドロップダウンから今週の全レース (${data.count}レース) を切替可能です。`);
+            } else {
+                alert("今週のJRAデータ取得エラー: " + (data.message || "データが見つかりませんでした。"));
+            }
+        } catch (err) {
+            console.error("Failed to fetch weekly JRA races:", err);
+            alert("通信エラーにより今週のJRAデータ取得に失敗しました。");
+        } finally {
+            if (btnFetchWeekly) {
+                btnFetchWeekly.disabled = false;
+                btnFetchWeekly.innerHTML = originalBtnText;
+            }
+            if (btnFetchWeeklySide) {
+                btnFetchWeeklySide.disabled = false;
+                btnFetchWeeklySide.innerHTML = '<i class="fa-solid fa-calendar-check me-1"></i> 今週分のJRAデータ取得 & 予想';
+            }
+        }
+    }
+
+    if (btnFetchWeekly) btnFetchWeekly.addEventListener("click", handleFetchWeeklyJra);
+    if (btnFetchWeeklySide) btnFetchWeeklySide.addEventListener("click", handleFetchWeeklyJra);
 
     // Load available races (including DB saved races) on start
     loadRaces();

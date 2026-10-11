@@ -89,10 +89,18 @@
     </nav>
 
     <!-- Hero Banner -->
-    <div class="hero-banner text-center">
+    <div class="hero-banner text-center py-4">
         <div class="container">
             <h1 class="display-5 fw-bold"><i class="fa-solid fa-chart-line me-2"></i>機械学習・統計解析データ予想</h1>
-            <p class="lead mb-0">LightGBM & Random Forest による精密勝ち馬確率・複勝率・買い目計算エンジン</p>
+            <p class="lead mb-3">LightGBM & Random Forest による精密勝ち馬確率・複勝率・買い目計算エンジン</p>
+
+            <!-- One-Click Weekly JRA Fetch Button -->
+            <div class="d-flex justify-content-center mt-3">
+                <button id="btn-fetch-weekly" class="btn btn-warning btn-lg px-4 py-3 fw-bold shadow text-dark border-3 border-light rounded-pill">
+                    <i class="fa-solid fa-bolt me-2 text-danger fs-4 align-middle"></i>
+                    <span class="fs-5 align-middle">ボタン一つで今週分のJRAデータを取得して一括予想</span>
+                </button>
+            </div>
         </div>
     </div>
 
@@ -103,10 +111,20 @@
             <!-- Left Column: Race Selector & JRA Import & Input Form -->
             <div class="col-lg-4">
 
+                <!-- One Click Quick Access Card for Mobile/Sidebar -->
+                <div class="card bg-warning-subtle border-warning mb-3">
+                    <div class="card-body text-center p-3">
+                        <button id="btn-fetch-weekly-side" class="btn btn-warning btn-sm w-100 fw-bold shadow-sm">
+                            <i class="fa-solid fa-calendar-check me-1"></i> 今週分のJRAデータ取得 & 予想
+                        </button>
+                        <small class="text-muted d-block mt-1 fs-7">JRA公式の最新出馬表をワンクリックで読み込みます</small>
+                    </div>
+                </div>
+
                 <!-- JRA Racecard Import Section -->
                 <div class="card border-primary">
                     <div class="card-header bg-primary text-white">
-                        <i class="fa-solid fa-cloud-arrow-down me-2"></i>JRA 出馬表 自動取り込み
+                        <i class="fa-solid fa-cloud-arrow-down me-2"></i>JRA 個別出馬表 自動取り込み
                     </div>
                     <div class="card-body">
                         <form id="form-import-jra">
