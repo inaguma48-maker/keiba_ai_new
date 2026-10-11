@@ -106,20 +106,25 @@
                 <!-- JRA Racecard Import Section -->
                 <div class="card border-primary">
                     <div class="card-header bg-primary text-white">
-                        <i class="fa-solid fa-cloud-arrow-down me-2"></i>JRA 出馬表 自動取り込み
+                        <i class="fa-solid fa-cloud-arrow-down me-2"></i>JRA 出馬表 & オッズ 自動検出
                     </div>
                     <div class="card-body">
+                        <!-- Automatic One-Click JRA Auto Detection Button -->
+                        <button id="btn-auto-detect-jra" class="btn btn-warning btn-lg w-100 fw-bold text-dark mb-3 shadow-sm">
+                            <i class="fa-solid fa-wand-magic-sparkles me-1"></i> 1タップでJRA最新レース・オッズ自動取得 & AI予想
+                        </button>
+                        <hr class="my-2">
                         <form id="form-import-jra">
                             <div class="mb-2">
-                                <label class="form-label small fw-bold">JRA レースURL 入力</label>
+                                <label class="form-label small fw-bold text-muted">指定URLから直接取得 (任意)</label>
                                 <input type="url" id="input-jra-url" class="form-control form-control-sm" placeholder="https://www.jra.go.jp/...">
                             </div>
-                            <div class="text-center my-1 text-muted small">- または 出馬表テキスト貼り付け -</div>
+                            <div class="text-center my-1 text-muted small">- または テキスト貼り付け -</div>
                             <div class="mb-2">
-                                <textarea id="input-jra-text" class="form-control form-control-sm" rows="3" placeholder="馬番 馬名 騎手 斤量 オッズ などを貼り付け"></textarea>
+                                <textarea id="input-jra-text" class="form-control form-control-sm" rows="2" placeholder="出馬表・オッズテキスト"></textarea>
                             </div>
-                            <button type="submit" class="btn btn-success btn-sm w-100 fw-bold">
-                                <i class="fa-solid fa-download me-1"></i> JRA出馬表を取り込んで予想
+                            <button type="submit" class="btn btn-outline-primary btn-sm w-100 fw-bold">
+                                <i class="fa-solid fa-download me-1"></i> 手動入力・URL指定で予想
                             </button>
                         </form>
                     </div>

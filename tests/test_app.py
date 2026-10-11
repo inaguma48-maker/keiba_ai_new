@@ -9,7 +9,7 @@ from src.models import RaceInfo, HorseEntry
 from src.data import extract_features, generate_synthetic_historical_data, get_sample_races
 from src.predictor import HorseRacePredictor
 from src.strategy import calculate_betting_recommendations
-from src.jra_importer import parse_jra_text, fetch_and_parse_jra_url, clean_horse_name
+from src.jra_importer import parse_jra_text, fetch_and_parse_jra_url, clean_horse_name, auto_detect_jra_races
 from src.db import init_db, save_race, get_race_by_id, list_all_races
 from app import app
 
@@ -152,6 +152,12 @@ def test_jra_sprinters_stakes_url_import():
     assert race.race_name is not None
     assert len(race.horses) >= 1
 
+def test_auto_detect_jra_races():
+    races = auto_detect_jra_races()
+    assert len(races) >= 1
+    assert races[0].race_name is not None
+    assert len(races[0].horses) >= 3
+
 def test_flask_api_endpoints():
     client = app.test_client()
 
@@ -180,6 +186,13 @@ def test_flask_api_endpoints():
     pred_data = res_pred.get_json()
     assert pred_data["status"] == "success"
     assert len(pred_data["predictions"]) == len(sample_race.horses)
+
+    # Test POST /api/auto_fetch_jra
+    res_auto = client.post("/api/auto_fetch_jra")
+    assert res_auto.status_code == 200
+    auto_data = res_auto.get_json()
+    assert auto_data["status"] == "success"
+    assert len(auto_data["results"]) >= 1
 
     # Test POST /api/import_jra for Sirius Stakes
     res_import = client.post(

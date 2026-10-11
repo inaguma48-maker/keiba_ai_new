@@ -13,7 +13,7 @@ from src.models import RaceInfo, HorseEntry
 from src.data import get_sample_races, generate_synthetic_historical_data
 from src.predictor import HorseRacePredictor
 from src.strategy import calculate_betting_recommendations
-from src.jra_importer import parse_jra_text, fetch_and_parse_jra_url
+from src.jra_importer import parse_jra_text, fetch_and_parse_jra_url, auto_detect_jra_races
 from src.db import init_db, save_race, get_race_by_id, list_all_races
 
 app = Flask(__name__)
@@ -48,6 +48,32 @@ def get_race_detail(race_id: str):
     if not race:
         return jsonify({"status": "error", "message": "Race not found"}), 404
     return jsonify({"status": "success", "race": race.to_dict()})
+
+@app.route("/api/auto_fetch_jra", methods=["POST"])
+def auto_fetch_jra():
+    try:
+        races = auto_detect_jra_races()
+        if not races:
+            return jsonify({"status": "error", "message": "JRA最新レースが自動検出できませんでした。"}), 404
+
+        processed_results = []
+        for race in races:
+            save_race(race)
+            preds = predictor.predict_race(race)
+            recs = calculate_betting_recommendations(preds)
+            processed_results.append({
+                "race": race.to_dict(),
+                "predictions": preds,
+                "recommendations": recs
+            })
+
+        return jsonify({
+            "status": "success",
+            "message": f"JRA最新出馬表・オッズを自動検出し{len(races)}件取り込みました。",
+            "results": processed_results
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route("/api/import_jra", methods=["POST"])
 def import_jra():

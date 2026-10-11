@@ -7,6 +7,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const btnRetrain = document.getElementById("btn-retrain");
     const formAddHorse = document.getElementById("form-add-horse");
     const formImportJra = document.getElementById("form-import-jra");
+    const btnAutoDetectJra = document.getElementById("btn-auto-detect-jra");
 
     const displayRaceName = document.getElementById("display-race-name");
     const displayRaceMeta = document.getElementById("display-race-meta");
@@ -62,6 +63,39 @@ document.addEventListener("DOMContentLoaded", () => {
             runPrediction(currentRace);
         }
     });
+
+    // One-Click JRA Auto Detection Event Listener
+    if (btnAutoDetectJra) {
+        btnAutoDetectJra.addEventListener("click", async () => {
+            tbodyPredictions.innerHTML = '<tr><td colspan="6" class="text-center py-4"><div class="spinner-border text-warning" role="status"></div><div class="mt-2 text-dark fw-bold">JRA公式最新レース・オッズを自動検出中...</div></td></tr>';
+
+            try {
+                const res = await fetch("/api/auto_fetch_jra", { method: "POST" });
+                const result = await res.json();
+
+                if (result.status === "success" && result.results && result.results.length > 0) {
+                    const firstResult = result.results[0];
+                    currentRace = firstResult.race;
+                    displayRaceName.textContent = firstResult.race.race_name;
+                    displayRaceMeta.textContent = `${firstResult.race.track_name}競馬場 | ${firstResult.race.surface_type}${firstResult.race.distance}m | 馬場: ${firstResult.race.track_condition} | 天候: ${firstResult.race.weather} (自動検出完了)`;
+                    renderPredictions(firstResult.predictions);
+                    renderRecommendations(firstResult.recommendations);
+
+                    confidenceContainer.classList.remove("d-none");
+                    displayConfidence.textContent = `${firstResult.recommendations.confidence_score}%`;
+                    btnRecalculate.classList.remove("d-none");
+
+                    await loadRaces(firstResult.race.race_id);
+                    alert(`JRA最新レース・オッズの自動検出に成功しました！ (${result.results.length}件取り込み済み)`);
+                } else {
+                    alert("自動検出エラー: " + (result.message || "レースが見つかりませんでした"));
+                }
+            } catch (err) {
+                console.error(err);
+                alert("JRA自動検出通信エラーが発生しました。");
+            }
+        });
+    }
 
     // JRA Racecard Import Form Submit
     formImportJra.addEventListener("submit", async (e) => {
