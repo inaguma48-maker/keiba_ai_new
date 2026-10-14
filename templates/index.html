@@ -211,6 +211,40 @@
                     </div>
                 </div>
 
+                <!-- Live 2D Track Canvas & Visual Simulation Section -->
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                        <span class="fw-bold"><i class="fa-solid fa-flag-checkered me-2 text-warning"></i>リアル2D競馬場・コース再現 & Live シミュレーション</span>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button id="btn-start-sim" class="btn btn-warning fw-bold text-dark" disabled>
+                                <i class="fa-solid fa-play me-1"></i> レースシミュレーション出走
+                            </button>
+                            <button id="btn-reset-sim" class="btn btn-outline-light btn-sm" disabled>
+                                <i class="fa-solid fa-rotate-left me-1"></i> リセット
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body p-3 bg-light">
+                        <!-- Track Profile Badges -->
+                        <div id="track-profile-badges" class="d-flex flex-wrap gap-2 mb-2 small align-items-center">
+                            <span class="badge bg-secondary" id="badge-track-dir">回り: -</span>
+                            <span class="badge bg-secondary" id="badge-track-shape">コース形状: -</span>
+                            <span class="badge bg-secondary" id="badge-track-stretch">直線長さ: -</span>
+                            <span class="badge bg-secondary" id="badge-track-slope">坂・高低差: -</span>
+                        </div>
+                        <div class="position-relative text-center bg-white rounded border shadow-inner p-2">
+                            <canvas id="raceCanvas" width="700" height="340" style="max-width: 100%; height: auto; border-radius: 8px;"></canvas>
+                            <div id="sim-status-overlay" class="position-absolute top-50 start-50 translate-middle text-muted fw-bold small bg-white bg-opacity-75 p-2 rounded d-none">
+                                レースシミュレーション停止中
+                            </div>
+                        </div>
+                        <div class="text-muted small mt-2 d-flex justify-content-between align-items-center">
+                            <span><i class="fa-solid fa-circle-info me-1 text-primary"></i>芝(緑) / ダート(茶) / 障害(青バンケット・生垣) のコース形状と坂・直線の長さを忠実に再現</span>
+                            <span id="sim-live-time" class="fw-bold text-dark">0.0秒</span>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Predictions Table -->
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">

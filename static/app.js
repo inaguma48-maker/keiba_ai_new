@@ -15,8 +15,220 @@ document.addEventListener("DOMContentLoaded", () => {
     const displayConfidence = document.getElementById("display-confidence");
     const tbodyPredictions = document.getElementById("tbody-predictions");
 
+    // Canvas Simulation Elements
+    const canvas = document.getElementById("raceCanvas");
+    const ctx = canvas ? canvas.getContext("2d") : null;
+    const btnStartSim = document.getElementById("btn-start-sim");
+    const btnResetSim = document.getElementById("btn-reset-sim");
+    const simLiveTime = document.getElementById("sim-live-time");
+
+    const badgeTrackDir = document.getElementById("badge-track-dir");
+    const badgeTrackShape = document.getElementById("badge-track-shape");
+    const badgeTrackStretch = document.getElementById("badge-track-stretch");
+    const badgeTrackSlope = document.getElementById("badge-track-slope");
+
+    let simAnimId = null;
+    let simProgress = 0; // 0.0 to 1.0
+    let simRunning = false;
+    let simPredictions = [];
+
     // Load available races (including DB saved races) on start
     loadRaces();
+
+    function updateTrackProfileUI(race) {
+        const profile = race.track_profile || {
+            direction: "右回り (クロックワイズ)",
+            shape: "標準オーバル",
+            home_stretch_m: 350.0,
+            slope_desc: "一般的な坂"
+        };
+
+        if (badgeTrackDir) badgeTrackDir.textContent = `回り: ${profile.direction}`;
+        if (badgeTrackShape) badgeTrackShape.textContent = `コース: ${profile.shape}`;
+        if (badgeTrackStretch) badgeTrackStretch.textContent = `直線: ${profile.home_stretch_m}m`;
+        if (badgeTrackSlope) badgeTrackSlope.textContent = `勾配/坂: ${profile.slope_desc}`;
+
+        if (btnStartSim) btnStartSim.disabled = false;
+        if (btnResetSim) btnResetSim.disabled = false;
+
+        drawTrackCanvas(race, 0);
+    }
+
+    function drawTrackCanvas(race, progress = 0) {
+        if (!ctx || !canvas) return;
+        const width = canvas.width;
+        const height = canvas.height;
+
+        ctx.clearRect(0, 0, width, height);
+
+        const surface = race ? race.surface_type : "芝";
+        const trackName = race ? race.track_name : "東京";
+        const isObstacle = surface === "障害";
+        const isDirt = surface === "ダート";
+
+        // Environment Background
+        ctx.fillStyle = isObstacle ? "#e3f2fd" : (isDirt ? "#efebe9" : "#f1f8e9");
+        ctx.fillRect(0, 0, width, height);
+
+        // Course Colors
+        let outerColor = "#2e7d32";
+        let innerColor = "#1b5e20";
+        let dirtColor = "#8d6e63";
+
+        if (isDirt) {
+            outerColor = "#a1887f";
+            innerColor = "#6d4c41";
+        } else if (isObstacle) {
+            outerColor = "#1565c0";
+            innerColor = "#0d47a1";
+        }
+
+        // Outer Oval Track Geometry
+        ctx.lineWidth = isObstacle ? 36 : 28;
+        ctx.strokeStyle = outerColor;
+        ctx.beginPath();
+        ctx.roundRect(50, 40, width - 100, height - 90, [80]);
+        ctx.stroke();
+
+        // Inner Dirt / Sub Track Surface
+        ctx.lineWidth = 14;
+        ctx.strokeStyle = dirtColor;
+        ctx.beginPath();
+        ctx.roundRect(65, 55, width - 130, height - 120, [65]);
+        ctx.stroke();
+
+        // Finish Line
+        const finishX = 220;
+        const finishYTop = height - 85;
+
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = "#d32f2f";
+        ctx.beginPath();
+        ctx.moveTo(finishX, finishYTop);
+        ctx.lineTo(finishX, height - 20);
+        ctx.stroke();
+
+        ctx.fillStyle = "#d32f2f";
+        ctx.font = "bold 12px sans-serif";
+        ctx.fillText("FINISH", finishX - 20, finishYTop - 6);
+
+        // Slope / Rise Indicator
+        const profile = race ? race.track_profile : null;
+        if (profile && profile.has_slope) {
+            ctx.fillStyle = "#ff6f00";
+            ctx.fillRect(280, height - 42, 120, 6);
+            ctx.fillStyle = "#e65100";
+            ctx.font = "bold 10px sans-serif";
+            ctx.fillText("▲ 坂 (高低差 " + profile.max_slope_m + "m)", 285, height - 28);
+        }
+
+        // Steeplechase Jump Fences for Obstacle Races
+        if (isObstacle) {
+            const jumpPositions = [
+                { x: 180, y: 40 },
+                { x: 500, y: 40 },
+                { x: 650, y: 170 },
+                { x: 400, y: height - 50 }
+            ];
+            jumpPositions.forEach(j => {
+                ctx.fillStyle = "#ff9800";
+                ctx.fillRect(j.x - 12, j.y - 12, 24, 24);
+                ctx.strokeStyle = "#bf360c";
+                ctx.lineWidth = 2;
+                ctx.strokeRect(j.x - 12, j.y - 12, 24, 24);
+                ctx.fillStyle = "#ffffff";
+                ctx.font = "bold 10px sans-serif";
+                ctx.fillText("生垣", j.x - 10, j.y + 4);
+            });
+        }
+
+        // Draw Horses moving along course oval path
+        const horses = (simPredictions && simPredictions.length > 0)
+            ? simPredictions
+            : (race ? race.horses : []);
+
+        const hCount = horses.length;
+        if (hCount === 0) return;
+
+        horses.forEach((h, idx) => {
+            const speedFactor = h.win_probability ? (0.85 + h.win_probability * 0.5) : 1.0;
+            const horseProgress = Math.min(1.0, progress * speedFactor);
+
+            const pos = getOvalPathCoords(horseProgress, width, height, idx, hCount);
+
+            const colors = ["#d32f2f", "#1976d2", "#388e3c", "#fbc02d", "#7b1fa2", "#e65100", "#00838f", "#4e342e"];
+            const hColor = colors[idx % colors.length];
+
+            ctx.fillStyle = hColor;
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, 9, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = "#ffffff";
+            ctx.stroke();
+
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "bold 10px sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(h.horse_number, pos.x, pos.y);
+
+            ctx.fillStyle = "#212121";
+            ctx.font = "9px sans-serif";
+            ctx.fillText(h.horse_name.substring(0, 5), pos.x, pos.y - 14);
+        });
+    }
+
+    function getOvalPathCoords(t, width, height, laneIdx, totalLanes) {
+        const rx = (width - 120) / 2;
+        const ry = (height - 110) / 2;
+        const cx = width / 2;
+        const cy = height / 2;
+
+        const laneOffset = (laneIdx - totalLanes / 2) * 3;
+        const angle = Math.PI * 2 * (1.0 - t) + Math.PI / 2;
+
+        const x = cx + (rx + laneOffset) * Math.cos(angle);
+        const y = cy + (ry + laneOffset) * Math.sin(angle);
+
+        return { x, y };
+    }
+
+    if (btnStartSim) {
+        btnStartSim.addEventListener("click", () => {
+            if (simRunning) return;
+            simRunning = true;
+            simProgress = 0;
+            const startTime = Date.now();
+
+            function animate() {
+                if (!simRunning) return;
+                simProgress += 0.0035;
+                const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(1);
+                if (simLiveTime) simLiveTime.textContent = `${elapsedSec}秒`;
+
+                drawTrackCanvas(currentRace, simProgress);
+
+                if (simProgress >= 1.0) {
+                    simRunning = false;
+                    if (simLiveTime) simLiveTime.textContent = `${elapsedSec}秒 (GOAL!)`;
+                } else {
+                    simAnimId = requestAnimationFrame(animate);
+                }
+            }
+            animate();
+        });
+    }
+
+    if (btnResetSim) {
+        btnResetSim.addEventListener("click", () => {
+            simRunning = false;
+            if (simAnimId) cancelAnimationFrame(simAnimId);
+            simProgress = 0;
+            if (simLiveTime) simLiveTime.textContent = "0.0秒";
+            drawTrackCanvas(currentRace, 0);
+        });
+    }
 
     async function loadRaces(selectedId = null) {
         try {
@@ -121,10 +333,12 @@ document.addEventListener("DOMContentLoaded", () => {
             });
             const result = await res.json();
 
-            if (result.status === "success") {
+            if (result.status === "success" && result.race) {
                 currentRace = result.race;
                 displayRaceName.textContent = result.race.race_name;
                 displayRaceMeta.textContent = `${result.race.track_name}競馬場 | ${result.race.surface_type}${result.race.distance}m | 馬場: ${result.race.track_condition} | 天候: ${result.race.weather} (DB保管完了)`;
+
+                updateTrackProfileUI(result.race);
                 renderPredictions(result.predictions);
                 renderRecommendations(result.recommendations);
 
@@ -135,7 +349,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 // Refresh race selection dropdown with newly saved DB race
                 await loadRaces(result.race.race_id);
             } else {
-                alert("JRA取り込みエラー: " + result.message);
+                alert("JRA取り込みエラー: " + (result.message || "取り込みに失敗しました"));
             }
         } catch (err) {
             console.error(err);
@@ -158,6 +372,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const result = await res.json();
 
             if (result.status === "success") {
+                updateTrackProfileUI(raceData);
                 renderPredictions(result.predictions);
                 renderRecommendations(result.recommendations);
 

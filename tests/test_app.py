@@ -5,7 +5,7 @@ Unit and Integration Tests for Horse Racing AI System.
 import pytest
 import json
 import pandas as pd
-from src.models import RaceInfo, HorseEntry
+from src.models import RaceInfo, HorseEntry, JRA_TRACK_PROFILES
 from src.data import extract_features, generate_synthetic_historical_data, get_sample_races
 from src.predictor import HorseRacePredictor
 from src.strategy import calculate_betting_recommendations
@@ -23,6 +23,15 @@ def test_data_models():
     rd = race.to_dict()
     assert rd["race_id"] == "R01"
     assert len(rd["horses"]) == 1
+    assert "track_profile" in rd
+    assert rd["track_profile"]["home_stretch_m"] == 525.9
+
+def test_jra_track_profiles():
+    assert len(JRA_TRACK_PROFILES) == 10
+    assert "東京" in JRA_TRACK_PROFILES
+    assert "中山" in JRA_TRACK_PROFILES
+    assert JRA_TRACK_PROFILES["中山"]["max_slope_m"] == 5.3
+    assert JRA_TRACK_PROFILES["新潟"]["home_stretch_m"] == 659.0
 
 def test_db_persistence():
     init_db()
