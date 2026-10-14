@@ -28,15 +28,17 @@ class HorseEntry:
 JRA_TRACK_PROFILES: Dict[str, Dict[str, Any]] = {
     "東京": {
         "direction": "左回り (カウンタークロック)",
-        "shape": "大回り・緩やかな4コーナー",
+        "shape": "日本最高峰の大回り・緩やかな4コーナー",
         "home_stretch_m": 525.9,
         "max_slope_m": 2.1,
         "slope_desc": "ゴール手前526mの直線に高低差2.1mの激坂（つくし坂）",
-        "turf_color": "#2e7d32",
-        "dirt_color": "#a1887f",
-        "obstacle_color": "#1565c0",
+        "turf_color": "#1b5e20",
+        "dirt_color": "#8d6e63",
+        "obstacle_color": "#0d47a1",
         "has_slope": True,
-        "has_obstacle_course": True
+        "has_obstacle_course": True,
+        "is_left_turn": True,
+        "slope_position_ratio": 0.35
     },
     "中山": {
         "direction": "右回り (クロックワイズ)",
@@ -92,11 +94,13 @@ JRA_TRACK_PROFILES: Dict[str, Dict[str, Any]] = {
         "home_stretch_m": 659.0,
         "max_slope_m": 2.2,
         "slope_desc": "日本唯一の直線1000mコースを併設。外回り直線659mは日本最大",
-        "turf_color": "#43a047",
-        "dirt_color": "#a1887f",
+        "turf_color": "#2e7d32",
+        "dirt_color": "#8d6e63",
         "obstacle_color": "#1e88e5",
         "has_slope": False,
-        "has_obstacle_course": True
+        "has_obstacle_course": True,
+        "is_left_turn": True,
+        "has_straight_1000m": True
     },
     "福島": {
         "direction": "右回り (クロックワイズ)",

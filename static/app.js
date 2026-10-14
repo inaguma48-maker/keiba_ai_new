@@ -63,86 +63,137 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const surface = race ? race.surface_type : "芝";
         const trackName = race ? race.track_name : "東京";
+        const profile = race ? race.track_profile : null;
         const isObstacle = surface === "障害";
         const isDirt = surface === "ダート";
 
-        // Environment Background
-        ctx.fillStyle = isObstacle ? "#e3f2fd" : (isDirt ? "#efebe9" : "#f1f8e9");
+        // Realistic Ground / Infield Environment Textures
+        const gradBg = ctx.createRadialGradient(width/2, height/2, 50, width/2, height/2, width/2);
+        gradBg.addColorStop(0, "#1b2e2b");
+        gradBg.addColorStop(1, "#0d1b1a");
+        ctx.fillStyle = gradBg;
         ctx.fillRect(0, 0, width, height);
 
-        // Course Colors
-        let outerColor = "#2e7d32";
-        let innerColor = "#1b5e20";
-        let dirtColor = "#8d6e63";
+        // Multi-lane Course Colors
+        let turfMain = "#1e532b";
+        let turfSub = "#2e7d32";
+        let dirtMain = "#6d4c41";
+        let obstacleMain = "#0d47a1";
 
         if (isDirt) {
-            outerColor = "#a1887f";
-            innerColor = "#6d4c41";
+            turfMain = "#5d4037";
+            turfSub = "#8d6e63";
         } else if (isObstacle) {
-            outerColor = "#1565c0";
-            innerColor = "#0d47a1";
+            turfMain = "#1565c0";
+            turfSub = "#1976d2";
         }
 
-        // Outer Oval Track Geometry
-        ctx.lineWidth = isObstacle ? 36 : 28;
-        ctx.strokeStyle = outerColor;
+        // Outer Main Turf/Dirt Track Polygon / Oval
+        ctx.lineWidth = isObstacle ? 42 : 34;
+        ctx.strokeStyle = turfMain;
+        ctx.lineJoin = "round";
         ctx.beginPath();
-        ctx.roundRect(50, 40, width - 100, height - 90, [80]);
+        ctx.roundRect(60, 45, width - 120, height - 100, [90]);
         ctx.stroke();
 
-        // Inner Dirt / Sub Track Surface
-        ctx.lineWidth = 14;
-        ctx.strokeStyle = dirtColor;
+        // Multi-lane Markings (Inner Lane)
+        ctx.lineWidth = 16;
+        ctx.strokeStyle = isDirt ? "#8d6e63" : "#2a6f3b";
         ctx.beginPath();
-        ctx.roundRect(65, 55, width - 130, height - 120, [65]);
+        ctx.roundRect(75, 60, width - 150, height - 130, [75]);
         ctx.stroke();
 
-        // Finish Line
-        const finishX = 220;
-        const finishYTop = height - 85;
+        // White Fence Outer/Inner Barriers
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.roundRect(42, 27, width - 84, height - 64, [100]);
+        ctx.roundRect(92, 77, width - 184, height - 164, [60]);
+        ctx.stroke();
 
-        ctx.lineWidth = 4;
+        // Checkered Finish Line & Pole
+        const finishX = 230;
+        const finishYTop = height - 92;
+        const finishYBot = height - 26;
+
+        ctx.lineWidth = 6;
+        ctx.strokeStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.moveTo(finishX, finishYTop);
+        ctx.lineTo(finishX, finishYBot);
+        ctx.stroke();
+
+        ctx.lineWidth = 6;
+        ctx.setLineDash([4, 4]);
         ctx.strokeStyle = "#d32f2f";
         ctx.beginPath();
         ctx.moveTo(finishX, finishYTop);
-        ctx.lineTo(finishX, height - 20);
+        ctx.lineTo(finishX, finishYBot);
         ctx.stroke();
+        ctx.setLineDash([]); // reset
 
-        ctx.fillStyle = "#d32f2f";
+        ctx.fillStyle = "#ffeb3b";
         ctx.font = "bold 12px sans-serif";
-        ctx.fillText("FINISH", finishX - 20, finishYTop - 6);
+        ctx.textAlign = "center";
+        ctx.fillText("🏁 FINISH", finishX, finishYTop - 10);
 
-        // Slope / Rise Indicator
-        const profile = race ? race.track_profile : null;
+        // Authentic Starting Gate (発走ゲート)
+        const gateX = width - 180;
+        const gateY = height - 72;
+        ctx.fillStyle = "#37474f";
+        ctx.fillRect(gateX - 25, gateY - 14, 50, 28);
+        ctx.strokeStyle = "#ffb300";
+        ctx.lineWidth = 3;
+        ctx.strokeRect(gateX - 25, gateY - 14, 50, 28);
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 10px sans-serif";
+        ctx.fillText("START ゲート", gateX, gateY + 4);
+
+        // Elevation / Rise Steep Slope Overlay (つくし坂・急坂)
         if (profile && profile.has_slope) {
-            ctx.fillStyle = "#ff6f00";
-            ctx.fillRect(280, height - 42, 120, 6);
-            ctx.fillStyle = "#e65100";
-            ctx.font = "bold 10px sans-serif";
-            ctx.fillText("▲ 坂 (高低差 " + profile.max_slope_m + "m)", 285, height - 28);
+            const slopeX = 290;
+            const slopeY = height - 60;
+            const gradSlope = ctx.createLinearGradient(slopeX, slopeY, slopeX + 130, slopeY);
+            gradSlope.addColorStop(0, "rgba(255,111,0,0.85)");
+            gradSlope.addColorStop(1, "rgba(229,57,53,0.85)");
+
+            ctx.fillStyle = gradSlope;
+            ctx.beginPath();
+            ctx.moveTo(slopeX, slopeY + 10);
+            ctx.lineTo(slopeX + 130, slopeY - 8);
+            ctx.lineTo(slopeX + 130, slopeY + 12);
+            ctx.lineTo(slopeX, slopeY + 12);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "bold 11px sans-serif";
+            ctx.textAlign = "left";
+            ctx.fillText("▲ 直線急坂 (高低差 " + profile.max_slope_m + "m)", slopeX + 10, slopeY + 28);
         }
 
-        // Steeplechase Jump Fences for Obstacle Races
+        // Steeplechase Jump Fences for Obstacle Races (生垣・バンケット・大竹柵)
         if (isObstacle) {
             const jumpPositions = [
-                { x: 180, y: 40 },
-                { x: 500, y: 40 },
-                { x: 650, y: 170 },
-                { x: 400, y: height - 50 }
+                { x: 190, y: 45, label: "大生垣" },
+                { x: 520, y: 45, label: "水濠" },
+                { x: 690, y: 190, label: "バンケット" },
+                { x: 420, y: height - 60, label: "大竹柵" }
             ];
             jumpPositions.forEach(j => {
-                ctx.fillStyle = "#ff9800";
-                ctx.fillRect(j.x - 12, j.y - 12, 24, 24);
-                ctx.strokeStyle = "#bf360c";
+                ctx.fillStyle = "#e65100";
+                ctx.fillRect(j.x - 16, j.y - 14, 32, 28);
+                ctx.strokeStyle = "#ffeb3b";
                 ctx.lineWidth = 2;
-                ctx.strokeRect(j.x - 12, j.y - 12, 24, 24);
+                ctx.strokeRect(j.x - 16, j.y - 14, 32, 28);
                 ctx.fillStyle = "#ffffff";
                 ctx.font = "bold 10px sans-serif";
-                ctx.fillText("生垣", j.x - 10, j.y + 4);
+                ctx.textAlign = "center";
+                ctx.fillText(j.label, j.x, j.y + 4);
             });
         }
 
-        // Draw Horses moving along course oval path
+        // Draw Realistic Video-Like Galloping Horses with Animated Legs, Jockey Riding & Dust Kickup
         const horses = (simPredictions && simPredictions.length > 0)
             ? simPredictions
             : (race ? race.horses : []);
@@ -150,20 +201,101 @@ document.addEventListener("DOMContentLoaded", () => {
         const hCount = horses.length;
         if (hCount === 0) return;
 
+        const isLeftTurn = profile ? profile.is_left_turn : false;
+        const nowSec = Date.now() / 1000.0;
+
         horses.forEach((h, idx) => {
             const speedFactor = h.win_probability ? (0.85 + h.win_probability * 0.5) : 1.0;
             const horseProgress = Math.min(1.0, progress * speedFactor);
 
-            const pos = getOvalPathCoords(horseProgress, width, height, idx, hCount);
+            const pos = getOvalPathCoords(horseProgress, width, height, idx, hCount, isLeftTurn);
 
-            const colors = ["#d32f2f", "#1976d2", "#388e3c", "#fbc02d", "#7b1fa2", "#e65100", "#00838f", "#4e342e"];
-            const hColor = colors[idx % colors.length];
+            // Next position step to calculate movement heading angle
+            const posNext = getOvalPathCoords(Math.min(1.0, horseProgress + 0.002), width, height, idx, hCount, isLeftTurn);
+            const moveAngle = Math.atan2(posNext.y - pos.y, posNext.x - pos.x);
 
-            ctx.fillStyle = hColor;
+            // Galloping Gait Bobbing Motion (上下・伸縮バウンド)
+            const gallopPhase = (nowSec * 14.0 + idx * 0.7) % (Math.PI * 2);
+            const verticalBob = Math.sin(gallopPhase) * 3.5;
+            const legExtend = Math.cos(gallopPhase) * 12.0;
+
+            const silksColors = [
+                "#d32f2f", "#1976d2", "#388e3c", "#fbc02d",
+                "#7b1fa2", "#e65100", "#00838f", "#4e342e"
+            ];
+            const silkColor = silksColors[idx % silksColors.length];
+
+            ctx.save();
+            ctx.translate(pos.x, pos.y + verticalBob);
+            ctx.rotate(moveAngle);
+
+            // Kickup Dust / Turf Particles behind hooves
+            if (simRunning) {
+                ctx.fillStyle = isDirt ? "rgba(141, 110, 99, 0.6)" : "rgba(76, 175, 80, 0.6)";
+                for (let p = 0; p < 3; p++) {
+                    const px = -20 - Math.random() * 12;
+                    const py = (Math.random() - 0.5) * 10;
+                    ctx.beginPath();
+                    ctx.arc(px, py, 2 + Math.random() * 2.5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            // Galloping Legs (Front and Rear Legs in Full Strided Motion)
+            ctx.lineWidth = 2.5;
+            ctx.strokeStyle = "#ffffff";
+
+            // Front Legs
             ctx.beginPath();
-            ctx.arc(pos.x, pos.y, 9, 0, Math.PI * 2);
+            ctx.moveTo(8, 4);
+            ctx.lineTo(8 + legExtend, 12);
+            ctx.moveTo(4, 4);
+            ctx.lineTo(4 - legExtend * 0.8, 12);
+            // Rear Legs
+            ctx.moveTo(-8, 4);
+            ctx.lineTo(-8 - legExtend, 12);
+            ctx.moveTo(-12, 4);
+            ctx.lineTo(-12 + legExtend * 0.8, 12);
+            ctx.stroke();
+
+            // Horse Body Silhouette (サラブレッド馬体)
+            ctx.fillStyle = "#3e2723"; // Dark Bay / Chestnut Thoroughbred Body
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 16, 8, 0, 0, Math.PI * 2);
             ctx.fill();
-            ctx.lineWidth = 2;
+
+            // Horse Neck & Head (首と頭部)
+            ctx.beginPath();
+            ctx.moveTo(10, -3);
+            ctx.lineTo(18, -10);
+            ctx.lineTo(23, -8);
+            ctx.lineTo(14, 2);
+            ctx.closePath();
+            ctx.fill();
+
+            // Jockey Silks Body (騎手の勝負服)
+            ctx.fillStyle = silkColor;
+            ctx.beginPath();
+            ctx.arc(-2, -9, 6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.lineWidth = 1.5;
+            ctx.strokeStyle = "#ffffff";
+            ctx.stroke();
+
+            // Jockey Helmet / Cap (ヘルメット)
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.arc(-1, -12, 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.restore();
+
+            // Horse Saddle Cloth Badge Number
+            ctx.fillStyle = silkColor;
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y - 24, 9, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.lineWidth = 1.5;
             ctx.strokeStyle = "#ffffff";
             ctx.stroke();
 
@@ -171,22 +303,27 @@ document.addEventListener("DOMContentLoaded", () => {
             ctx.font = "bold 10px sans-serif";
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
-            ctx.fillText(h.horse_number, pos.x, pos.y);
+            ctx.fillText(h.horse_number, pos.x, pos.y - 24);
 
-            ctx.fillStyle = "#212121";
-            ctx.font = "9px sans-serif";
-            ctx.fillText(h.horse_name.substring(0, 5), pos.x, pos.y - 14);
+            // Horse Name Label
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "bold 10px sans-serif";
+            ctx.fillText(h.horse_name.substring(0, 6), pos.x, pos.y - 37);
         });
     }
 
-    function getOvalPathCoords(t, width, height, laneIdx, totalLanes) {
-        const rx = (width - 120) / 2;
-        const ry = (height - 110) / 2;
+    function getOvalPathCoords(t, width, height, laneIdx, totalLanes, isLeftTurn = false) {
+        const rx = (width - 140) / 2;
+        const ry = (height - 120) / 2;
         const cx = width / 2;
         const cy = height / 2;
 
-        const laneOffset = (laneIdx - totalLanes / 2) * 3;
-        const angle = Math.PI * 2 * (1.0 - t) + Math.PI / 2;
+        const laneOffset = (laneIdx - totalLanes / 2) * 3.2;
+
+        // Counter-clockwise vs Clockwise directional angle mapping
+        let angle = isLeftTurn
+            ? (Math.PI * 2 * t + Math.PI / 2)
+            : (Math.PI * 2 * (1.0 - t) + Math.PI / 2);
 
         const x = cx + (rx + laneOffset) * Math.cos(angle);
         const y = cy + (ry + laneOffset) * Math.sin(angle);
