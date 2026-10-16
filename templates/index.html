@@ -213,15 +213,22 @@
 
                 <!-- Live 2D Track Canvas & Visual Simulation Section -->
                 <div class="card shadow-sm border-0 mb-4">
-                    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-                        <span class="fw-bold"><i class="fa-solid fa-flag-checkered me-2 text-warning"></i>リアル2D競馬場・コース再現 & Live シミュレーション</span>
-                        <div class="btn-group btn-group-sm" role="group">
-                            <button id="btn-start-sim" class="btn btn-warning fw-bold text-dark" disabled>
-                                <i class="fa-solid fa-play me-1"></i> レースシミュレーション出走
-                            </button>
-                            <button id="btn-reset-sim" class="btn btn-outline-light btn-sm" disabled>
-                                <i class="fa-solid fa-rotate-left me-1"></i> リセット
-                            </button>
+                    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <span class="fw-bold"><i class="fa-solid fa-tv me-2 text-warning"></i>リアル競馬中継 Live シミュレーション & AIレース中継</span>
+                        <div class="d-flex align-items-center gap-2">
+                            <select id="select-cam-mode" class="form-select form-select-sm bg-dark text-white border-secondary" style="width: auto;">
+                                <option value="overview">🎥 全景俯瞰カメラ</option>
+                                <option value="lead">🏇 先頭馬追従カメラ</option>
+                                <option value="finish">🏁 決勝線ゴールカメラ</option>
+                            </select>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button id="btn-start-sim" class="btn btn-warning fw-bold text-dark" disabled>
+                                    <i class="fa-solid fa-play me-1"></i> 実況中継スタート
+                                </button>
+                                <button id="btn-reset-sim" class="btn btn-outline-light btn-sm" disabled>
+                                    <i class="fa-solid fa-rotate-left me-1"></i> リセット
+                                </button>
+                            </div>
                         </div>
                     </div>
                     <div class="card-body p-3 bg-light">
@@ -231,16 +238,21 @@
                             <span class="badge bg-secondary" id="badge-track-shape">コース形状: -</span>
                             <span class="badge bg-secondary" id="badge-track-stretch">直線長さ: -</span>
                             <span class="badge bg-secondary" id="badge-track-slope">坂・高低差: -</span>
+                            <span class="badge bg-danger ms-auto d-none" id="badge-live-tv"><i class="fa-solid fa-circle me-1 animate-pulse"></i>LIVE 中継中</span>
                         </div>
-                        <div class="position-relative text-center bg-dark rounded border border-secondary shadow-lg p-2">
+                        <div class="position-relative text-center bg-dark rounded border border-secondary shadow-lg p-2 overflow-hidden">
                             <canvas id="raceCanvas" width="760" height="380" style="max-width: 100%; height: auto; border-radius: 8px; background-color: #1b262c;"></canvas>
                             <div id="sim-status-overlay" class="position-absolute top-50 start-50 translate-middle text-white fw-bold small bg-dark bg-opacity-75 p-2 rounded d-none">
                                 レースシミュレーション停止中
                             </div>
                         </div>
-                        <div class="text-muted small mt-2 d-flex justify-content-between align-items-center">
-                            <span><i class="fa-solid fa-circle-info me-1 text-primary"></i>芝(緑) / ダート(茶) / 障害(青バンケット・生垣) のコース形状と坂・直線の長さを忠実に再現</span>
-                            <span id="sim-live-time" class="fw-bold text-dark">0.0秒</span>
+                        <!-- Live TV Broadcast Commentary Ticker -->
+                        <div class="alert alert-dark mb-0 mt-2 p-2 d-flex align-items-center gap-2 border-warning" style="background-color: #1a1a1a; color: #ffeb3b;">
+                            <span class="badge bg-warning text-dark fw-bold px-2 py-1"><i class="fa-solid fa-bullhorn me-1"></i>場内実況</span>
+                            <div id="broadcast-commentary-text" class="fw-bold small flex-grow-1 text-truncate" style="letter-spacing: 0.5px;">
+                                出走準備完了。スタートボタンを押すとAIリアル中継シミュレーションが始まります。
+                            </div>
+                            <span id="sim-live-time" class="badge bg-danger fw-bold fs-6">0.0秒</span>
                         </div>
                     </div>
                 </div>

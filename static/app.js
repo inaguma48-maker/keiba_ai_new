@@ -15,12 +15,15 @@ document.addEventListener("DOMContentLoaded", () => {
     const displayConfidence = document.getElementById("display-confidence");
     const tbodyPredictions = document.getElementById("tbody-predictions");
 
-    // Canvas Simulation Elements
+    // Canvas Simulation & Broadcast TV Elements
     const canvas = document.getElementById("raceCanvas");
     const ctx = canvas ? canvas.getContext("2d") : null;
     const btnStartSim = document.getElementById("btn-start-sim");
     const btnResetSim = document.getElementById("btn-reset-sim");
     const simLiveTime = document.getElementById("sim-live-time");
+    const selectCamMode = document.getElementById("select-cam-mode");
+    const commentaryText = document.getElementById("broadcast-commentary-text");
+    const badgeLiveTv = document.getElementById("badge-live-tv");
 
     const badgeTrackDir = document.getElementById("badge-track-dir");
     const badgeTrackShape = document.getElementById("badge-track-shape");
@@ -193,7 +196,7 @@ document.addEventListener("DOMContentLoaded", () => {
             });
         }
 
-        // Draw Realistic Video-Like Galloping Horses with Animated Legs, Jockey Riding & Dust Kickup
+        // Draw Realistic Video-Like Galloping Horses with High-Precision Thoroughbred Sprites, Camera Zoom & Broadcast HUD
         const horses = (simPredictions && simPredictions.length > 0)
             ? simPredictions
             : (race ? race.horses : []);
@@ -204,20 +207,41 @@ document.addEventListener("DOMContentLoaded", () => {
         const isLeftTurn = profile ? profile.is_left_turn : false;
         const nowSec = Date.now() / 1000.0;
 
-        horses.forEach((h, idx) => {
+        // Calculate positions of all horses
+        const horseStates = horses.map((h, idx) => {
             const speedFactor = h.win_probability ? (0.85 + h.win_probability * 0.5) : 1.0;
             const horseProgress = Math.min(1.0, progress * speedFactor);
-
             const pos = getOvalPathCoords(horseProgress, width, height, idx, hCount, isLeftTurn);
-
-            // Next position step to calculate movement heading angle
             const posNext = getOvalPathCoords(Math.min(1.0, horseProgress + 0.002), width, height, idx, hCount, isLeftTurn);
             const moveAngle = Math.atan2(posNext.y - pos.y, posNext.x - pos.x);
+            return { h, idx, horseProgress, pos, moveAngle };
+        });
 
-            // Galloping Gait Bobbing Motion (上下・伸縮バウンド)
-            const gallopPhase = (nowSec * 14.0 + idx * 0.7) % (Math.PI * 2);
-            const verticalBob = Math.sin(gallopPhase) * 3.5;
-            const legExtend = Math.cos(gallopPhase) * 12.0;
+        // Find current leader
+        horseStates.sort((a, b) => b.horseProgress - a.horseProgress);
+        const leader = horseStates[0];
+
+        // Dynamic Broadcast Camera Pan & Zoom Matrix
+        const camMode = selectCamMode ? selectCamMode.value : "overview";
+        ctx.save();
+
+        if (camMode === "lead" && simRunning && leader) {
+            ctx.translate(width / 2, height / 2);
+            ctx.scale(1.4, 1.4);
+            ctx.translate(-leader.pos.x, -leader.pos.y);
+        } else if (camMode === "finish" && simRunning) {
+            ctx.translate(width / 2, height / 2);
+            ctx.scale(1.35, 1.35);
+            ctx.translate(-finishX - 30, -finishYBot + 40);
+        }
+
+        // Draw Horses in order from background to foreground
+        horseStates.reverse().forEach(({ h, idx, horseProgress, pos, moveAngle }) => {
+            // Galloping Gait Kinematics (サラブレッド走法のアニメーション)
+            const gallopPhase = (nowSec * 16.0 + idx * 0.8) % (Math.PI * 2);
+            const verticalBob = Math.sin(gallopPhase) * 4.0;
+            const legExtendFront = Math.cos(gallopPhase) * 14.0;
+            const legExtendRear = Math.sin(gallopPhase + 0.4) * 14.0;
 
             const silksColors = [
                 "#d32f2f", "#1976d2", "#388e3c", "#fbc02d",
@@ -225,91 +249,149 @@ document.addEventListener("DOMContentLoaded", () => {
             ];
             const silkColor = silksColors[idx % silksColors.length];
 
+            // Horse Body Coat Color Varieties (栗毛、鹿毛、青毛、芦毛)
+            const coatColors = ["#3e2723", "#4e342e", "#212121", "#757575", "#5d4037"];
+            const coatColor = coatColors[idx % coatColors.length];
+
             ctx.save();
             ctx.translate(pos.x, pos.y + verticalBob);
             ctx.rotate(moveAngle);
 
-            // Kickup Dust / Turf Particles behind hooves
+            // Turf Kickup Particle Physics
             if (simRunning) {
-                ctx.fillStyle = isDirt ? "rgba(141, 110, 99, 0.6)" : "rgba(76, 175, 80, 0.6)";
-                for (let p = 0; p < 3; p++) {
-                    const px = -20 - Math.random() * 12;
-                    const py = (Math.random() - 0.5) * 10;
+                ctx.fillStyle = isDirt ? "rgba(141, 110, 99, 0.7)" : "rgba(76, 175, 80, 0.7)";
+                for (let p = 0; p < 4; p++) {
+                    const px = -22 - Math.random() * 15;
+                    const py = (Math.random() - 0.5) * 12;
                     ctx.beginPath();
-                    ctx.arc(px, py, 2 + Math.random() * 2.5, 0, Math.PI * 2);
+                    ctx.arc(px, py, 1.5 + Math.random() * 3.0, 0, Math.PI * 2);
                     ctx.fill();
                 }
             }
 
-            // Galloping Legs (Front and Rear Legs in Full Strided Motion)
-            ctx.lineWidth = 2.5;
-            ctx.strokeStyle = "#ffffff";
-
-            // Front Legs
+            // High-Detail Muscle Shaded Horse Body & Limbs
+            // Rear Hooves & Legs
+            ctx.lineWidth = 3.0;
+            ctx.strokeStyle = coatColor;
             ctx.beginPath();
-            ctx.moveTo(8, 4);
-            ctx.lineTo(8 + legExtend, 12);
-            ctx.moveTo(4, 4);
-            ctx.lineTo(4 - legExtend * 0.8, 12);
-            // Rear Legs
-            ctx.moveTo(-8, 4);
-            ctx.lineTo(-8 - legExtend, 12);
-            ctx.moveTo(-12, 4);
-            ctx.lineTo(-12 + legExtend * 0.8, 12);
+            ctx.moveTo(-6, 3);
+            ctx.lineTo(-8 - legExtendRear, 13);
+            ctx.lineTo(-12 - legExtendRear * 1.1, 18);
+            ctx.moveTo(-10, 3);
+            ctx.lineTo(-12 + legExtendRear * 0.7, 14);
             ctx.stroke();
 
-            // Horse Body Silhouette (サラブレッド馬体)
-            ctx.fillStyle = "#3e2723"; // Dark Bay / Chestnut Thoroughbred Body
+            // Front Hooves & Legs
             ctx.beginPath();
-            ctx.ellipse(0, 0, 16, 8, 0, 0, Math.PI * 2);
+            ctx.moveTo(10, 3);
+            ctx.lineTo(12 + legExtendFront, 13);
+            ctx.lineTo(16 + legExtendFront * 1.1, 18);
+            ctx.moveTo(6, 3);
+            ctx.lineTo(6 - legExtendFront * 0.7, 14);
+            ctx.stroke();
+
+            // Muscular Horse Torso (馬体胴部)
+            ctx.fillStyle = coatColor;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 18, 9, 0, 0, Math.PI * 2);
             ctx.fill();
 
-            // Horse Neck & Head (首と頭部)
+            // Saddle Cloth (鞍とゼッケン)
+            ctx.fillStyle = silkColor;
+            ctx.fillRect(-6, -8, 12, 10);
+            ctx.strokeStyle = "#ffffff";
+            ctx.lineWidth = 1;
+            ctx.strokeRect(-6, -8, 12, 10);
+
+            // Neck & Dynamic Head Movement
+            const neckAngle = -0.3 + Math.sin(gallopPhase) * 0.1;
+            ctx.save();
+            ctx.translate(12, -4);
+            ctx.rotate(neckAngle);
+
+            ctx.fillStyle = coatColor;
             ctx.beginPath();
-            ctx.moveTo(10, -3);
-            ctx.lineTo(18, -10);
-            ctx.lineTo(23, -8);
-            ctx.lineTo(14, 2);
+            ctx.moveTo(0, 0);
+            ctx.lineTo(10, -10);
+            ctx.lineTo(18, -8);
+            ctx.lineTo(16, -2);
+            ctx.lineTo(4, 5);
             ctx.closePath();
             ctx.fill();
 
-            // Jockey Silks Body (騎手の勝負服)
+            // Horse Snout & Ears
+            ctx.beginPath();
+            ctx.arc(17, -7, 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(8, -12);
+            ctx.lineTo(10, -16);
+            ctx.lineTo(11, -11);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.restore(); // end neck
+
+            // Jockey Silks & Posture
             ctx.fillStyle = silkColor;
             ctx.beginPath();
-            ctx.arc(-2, -9, 6, 0, Math.PI * 2);
+            ctx.ellipse(-2, -10, 6, 5, -0.4, 0, Math.PI * 2);
             ctx.fill();
-            ctx.lineWidth = 1.5;
-            ctx.strokeStyle = "#ffffff";
-            ctx.stroke();
 
-            // Jockey Helmet / Cap (ヘルメット)
-            ctx.fillStyle = "#ffffff";
+            // Jockey Helmet
+            ctx.fillStyle = "#ffeb3b";
             ctx.beginPath();
-            ctx.arc(-1, -12, 3, 0, Math.PI * 2);
+            ctx.arc(-2, -15, 3.5, 0, Math.PI * 2);
             ctx.fill();
 
             ctx.restore();
 
-            // Horse Saddle Cloth Badge Number
+            // Overhead Horse Saddle Number Badge & Name Box
+            ctx.save();
+            ctx.translate(pos.x, pos.y - 28);
+
             ctx.fillStyle = silkColor;
             ctx.beginPath();
-            ctx.arc(pos.x, pos.y - 24, 9, 0, Math.PI * 2);
+            ctx.arc(0, 0, 10, 0, Math.PI * 2);
             ctx.fill();
             ctx.lineWidth = 1.5;
             ctx.strokeStyle = "#ffffff";
             ctx.stroke();
 
             ctx.fillStyle = "#ffffff";
-            ctx.font = "bold 10px sans-serif";
+            ctx.font = "bold 11px sans-serif";
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
-            ctx.fillText(h.horse_number, pos.x, pos.y - 24);
+            ctx.fillText(h.horse_number, 0, 0);
 
-            // Horse Name Label
-            ctx.fillStyle = "#ffffff";
-            ctx.font = "bold 10px sans-serif";
-            ctx.fillText(h.horse_name.substring(0, 6), pos.x, pos.y - 37);
+            // Horse Name Tag with Glassmorphic Badge
+            ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
+            ctx.fillRect(-28, -20, 56, 13);
+            ctx.strokeStyle = "rgba(255,255,255,0.4)";
+            ctx.strokeRect(-28, -20, 56, 13);
+
+            ctx.fillStyle = "#ffeb3b";
+            ctx.font = "bold 9px sans-serif";
+            ctx.fillText(h.horse_name.substring(0, 6), 0, -13);
+
+            ctx.restore();
         });
+
+        ctx.restore(); // end camera transformation
+
+        // Live Broadcast TV HUD Leaderboard Bar (画面上部 Live 実況テロップ)
+        if (simRunning && leader) {
+            ctx.fillStyle = "rgba(10, 10, 10, 0.85)";
+            ctx.fillRect(15, 15, 300, 32);
+            ctx.strokeStyle = "#fbc02d";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(15, 15, 300, 32);
+
+            ctx.fillStyle = "#fbc02d";
+            ctx.font = "bold 12px sans-serif";
+            ctx.textAlign = "left";
+            ctx.fillText("LIVE 先頭: " + leader.h.horse_number + "番 " + leader.h.horse_name, 25, 35);
+        }
     }
 
     function getOvalPathCoords(t, width, height, laneIdx, totalLanes, isLeftTurn = false) {
@@ -336,6 +418,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (simRunning) return;
             simRunning = true;
             simProgress = 0;
+            if (badgeLiveTv) badgeLiveTv.classList.remove("d-none");
             const startTime = Date.now();
 
             function animate() {
@@ -344,10 +427,28 @@ document.addEventListener("DOMContentLoaded", () => {
                 const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(1);
                 if (simLiveTime) simLiveTime.textContent = `${elapsedSec}秒`;
 
+                // Real-time Japanese Broadcast Commentary Generator
+                if (commentaryText) {
+                    if (simProgress < 0.1) {
+                        commentaryText.textContent = "ゲートが一斉に開いた！綺麗なスタートを切りました！";
+                    } else if (simProgress < 0.35) {
+                        commentaryText.textContent = "各馬向正面へと差し掛かります。激しい先行争いが続いています！";
+                    } else if (simProgress < 0.65) {
+                        commentaryText.textContent = "レースは第3コーナーから第4コーナーへ！先頭馬が手応え良く後続を引き離します！";
+                    } else if (simProgress < 0.88) {
+                        commentaryText.textContent = "さあ最終直線だ！坂を駆け上がる！外からAI本命馬が猛烈な追い上げ！";
+                    } else if (simProgress < 1.0) {
+                        commentaryText.textContent = "大歓声の中、ゴール板前接戦！激しい追い比べ！";
+                    } else {
+                        commentaryText.textContent = "各馬ゴールイン！見事な一戦となりました！";
+                    }
+                }
+
                 drawTrackCanvas(currentRace, simProgress);
 
                 if (simProgress >= 1.0) {
                     simRunning = false;
+                    if (badgeLiveTv) badgeLiveTv.classList.add("d-none");
                     if (simLiveTime) simLiveTime.textContent = `${elapsedSec}秒 (GOAL!)`;
                 } else {
                     simAnimId = requestAnimationFrame(animate);
@@ -362,7 +463,9 @@ document.addEventListener("DOMContentLoaded", () => {
             simRunning = false;
             if (simAnimId) cancelAnimationFrame(simAnimId);
             simProgress = 0;
+            if (badgeLiveTv) badgeLiveTv.classList.add("d-none");
             if (simLiveTime) simLiveTime.textContent = "0.0秒";
+            if (commentaryText) commentaryText.textContent = "出走準備完了。スタートボタンを押すとAIリアル中継シミュレーションが始まります。";
             drawTrackCanvas(currentRace, 0);
         });
     }
