@@ -5,3 +5,4 @@ __pycache__/
 model_cache.pkl
 /home/jules/verification/
 data/
+db_structure.txt
