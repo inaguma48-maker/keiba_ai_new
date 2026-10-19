@@ -36,7 +36,7 @@
 
 ### 1. 依存ライブラリのインストール
 ```bash
-pip install pandas numpy scikit-learn lightgbm flask pytest
+pip install -r requirements.txt
 ```
 
 ### 2. アプリケーションの起動
@@ -44,6 +44,12 @@ pip install pandas numpy scikit-learn lightgbm flask pytest
 python3 app.py
 ```
 ブラウザで `http://localhost:5000` にアクセスします。
+
+### JRA公式サイトからの取得について
+- 「1タップでJRA最新レース・オッズ自動取得」は、アプリを実行しているPCから `www.jra.go.jp` に直接接続します（インターネット接続が必要）。
+- 取得したHTMLは `data/raw/jra/` に保存されます（git管理外）。
+- 接続や解析に失敗したときは、固定データを使わずエラーを表示します。
+- JRAの出馬表には過去成績が含まれないため、スピード指数などは仮の固定値です。予測値は参考になりません（`docs/DESIGN.md` §2）。
 
 ### 3. テストの実行
 ```bash

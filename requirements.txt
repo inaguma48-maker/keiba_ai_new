@@ -1,0 +1,8 @@
+flask
+pandas
+numpy
+scikit-learn
+lightgbm
+joblib
+beautifulsoup4
+pytest
