@@ -13,11 +13,38 @@ from src.models import RaceInfo, HorseEntry
 from src.data import get_sample_races, generate_synthetic_historical_data
 from src.predictor import HorseRacePredictor
 from src.strategy import calculate_betting_recommendations
-from src.jra_importer import parse_jra_text, fetch_and_parse_jra_url, auto_detect_jra_races
+from src.jra_importer import parse_jra_text
+from src.jra_site import (
+    JraClient, JraSiteError, card_to_race_info, cname_from_url, pick_target_date,
+)
 from src.db import init_db, save_race, get_race_by_id, list_all_races
 
 app = Flask(__name__)
 predictor = HorseRacePredictor()
+JRA_RAW_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "raw", "jra")
+PLACEHOLDER_WARNING = (
+    "JRAの出馬表には過去成績が含まれないため、スピード指数・過去勝率・騎手/調教師勝率・馬場適性は"
+    "仮の固定値です。予測値は参考になりません（docs/DESIGN.md §2 A2）。"
+)
+
+def _process_cards(cards):
+    """Save and predict every race that has odds; report the rest as skipped."""
+    results, skipped = [], []
+    for card in cards:
+        label = f"{card.venue}{card.race_number}R {card.race_name}"
+        try:
+            race = card_to_race_info(card)
+        except JraSiteError as e:
+            skipped.append({"race": label, "reason": str(e)})
+            continue
+        save_race(race)
+        preds = predictor.predict_race(race)
+        results.append({
+            "race": race.to_dict(),
+            "predictions": preds,
+            "recommendations": calculate_betting_recommendations(preds),
+        })
+    return results, skipped
 
 # Initialize Database
 init_db()
@@ -52,26 +79,25 @@ def get_race_detail(race_id: str):
 @app.route("/api/auto_fetch_jra", methods=["POST"])
 def auto_fetch_jra():
     try:
-        races = auto_detect_jra_races()
-        if not races:
-            return jsonify({"status": "error", "message": "JRA最新レースが自動検出できませんでした。"}), 404
-
-        processed_results = []
-        for race in races:
-            save_race(race)
-            preds = predictor.predict_race(race)
-            recs = calculate_betting_recommendations(preds)
-            processed_results.append({
-                "race": race.to_dict(),
-                "predictions": preds,
-                "recommendations": recs
-            })
-
+        client = JraClient(raw_dir=JRA_RAW_DIR)
+        meetings = client.fetch_meetings()
+        target = pick_target_date(meetings)
+        cards = []
+        for m in (m for m in meetings if m.date == target):
+            cards.extend(client.fetch_meeting_racecards(m))
+        results, skipped = _process_cards(cards)
+        if not results:
+            return jsonify({"status": "error", "message": "予測できるレースがありません（オッズ未発表の可能性）。", "skipped": skipped}), 404
         return jsonify({
             "status": "success",
-            "message": f"JRA最新出馬表・オッズを自動検出し{len(races)}件取り込みました。",
-            "results": processed_results
+            "message": f"JRA公式サイトから{target[:4]}年{target[4:6]}月{target[6:]}日の{len(results)}レースを取り込みました。",
+            "source": "www.jra.go.jp",
+            "warning": PLACEHOLDER_WARNING,
+            "skipped": skipped,
+            "results": results,
         })
+    except JraSiteError as e:
+        return jsonify({"status": "error", "message": str(e)}), 502
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -84,7 +110,21 @@ def import_jra():
 
     try:
         if url:
-            race = fetch_and_parse_jra_url(url)
+            page, cname = cname_from_url(url)
+            cards = JraClient(raw_dir=JRA_RAW_DIR).fetch_by_cname(page, cname)
+            results, skipped = _process_cards(cards)
+            if not results:
+                return jsonify({"status": "error", "message": "予測できるレースがありません。", "skipped": skipped}), 404
+            first = results[0]
+            return jsonify({
+                "status": "success",
+                "message": f"JRA公式サイトから{len(results)}レースを取り込み、データベースに保存しました。",
+                "warning": PLACEHOLDER_WARNING,
+                "skipped": skipped,
+                "race": first["race"],
+                "predictions": first["predictions"],
+                "recommendations": first["recommendations"],
+            })
         elif text_content:
             race = parse_jra_text(text_content, race_name_override=race_name)
         else:
@@ -103,6 +143,8 @@ def import_jra():
             "predictions": predictions,
             "recommendations": recommendations
         })
+    except JraSiteError as e:
+        return jsonify({"status": "error", "message": str(e)}), 502
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 

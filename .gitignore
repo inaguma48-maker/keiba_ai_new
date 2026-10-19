@@ -4,3 +4,4 @@ __pycache__/
 *.log
 model_cache.pkl
 /home/jules/verification/
+data/

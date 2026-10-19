@@ -538,7 +538,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     btnRecalculate.classList.remove("d-none");
 
                     await loadRaces(firstResult.race.race_id);
-                    alert(`JRA最新レース・オッズの自動検出に成功しました！ (${result.results.length}件取り込み済み)`);
+                    alert(`${result.message}\n\n【注意】${result.warning || ""}`);
                 } else {
                     alert("自動検出エラー: " + (result.message || "レースが見つかりませんでした"));
                 }
