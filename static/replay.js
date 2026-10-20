@@ -10,7 +10,7 @@
     const FRAME_COLORS = [["#ffffff", "#222222"], ["#222222", "#ffffff"], ["#e53935", "#ffffff"], ["#1e88e5", "#ffffff"],
         ["#fdd835", "#222222"], ["#43a047", "#ffffff"], ["#fb8c00", "#ffffff"], ["#f48fb1", "#222222"]];
     const COATS = ["#6b3f2a", "#3a2a22", "#a8561f", "#9a9a9a", "#1d1d1d", "#7b4a2e"];
-    const LANE_M = 2.0, GAP_M = 4.2, GATE_S = 3.0, TA = 2.5;
+    const LANE_M = 2.0, GAP_M = 4.2, GATE_S = 3.0;
 
     const $ = id => document.getElementById(id);
     const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -28,63 +28,10 @@
         mapc.width = W * dpr; mapc.height = DIM.mH * dpr; mapc.style.height = DIM.mH + "px";
     }
     let raf = null, lastTs = null;
+    let reqId = 0;         // latest user action wins: a slow response of an older request must not overwrite the screen
     let CUR = null;        // { race, course } of the race on screen (for the simulation button)
 
-    // ---------- distance curves (real time + real last 3F) ----------
-    function hermite(a, b, t) {
-        const h = b.t - a.t, u = (t - a.t) / h, u2 = u * u, u3 = u2 * u;
-        return (2 * u3 - 3 * u2 + 1) * a.d + (u3 - 2 * u2 + u) * h * a.v + (-2 * u3 + 3 * u2) * b.d + (u3 - u2) * h * b.v;
-    }
-
-    function makeCurve(r, D, Tw) {
-        if (r.time_s) {
-            const T = r.time_s;
-            let k;
-            if (r.last3f_s && D > 650 && T - r.last3f_s > TA + 1) {
-                const t1 = T - r.last3f_s, d1 = D - 600, v2 = 600 / r.last3f_s, v1 = d1 / (t1 - TA / 2);
-                k = [{ t: 0, d: 0, v: 0 }, { t: TA, d: v1 * TA / 2, v: v1 }, { t: t1, d: d1, v: (v1 + v2) / 2 }, { t: T, d: D, v: v2 }];
-            } else {
-                const v = D / (T - TA / 2);
-                k = [{ t: 0, d: 0, v: 0 }, { t: TA, d: v * TA / 2, v: v }, { t: T, d: D, v: v }];
-            }
-            const vEnd = k[k.length - 1].v;
-            return t => {
-                if (t <= 0) return 0;
-                if (t >= T) return D + vEnd * 3 * (1 - Math.exp(-(t - T) / 3));
-                for (let i = 0; i < k.length - 1; i++) if (t <= k[i + 1].t) return hermite(k[i], k[i + 1], t);
-                return D;
-            };
-        }
-        // did not finish: pulls up at 75% of the distance
-        const v = D / (Tw * 1.12), stopAt = D * 0.75;
-        return t => {
-            if (t <= 0) return 0;
-            const tr = Math.min(t, TA), d = v * (tr * tr / (2 * TA)) + (t > TA ? v * (t - TA) : 0);
-            if (d < stopAt) return d;
-            const tail = (t - (stopAt / v + TA / 2)) ;
-            return stopAt + 35 * (1 - Math.exp(-Math.max(0, tail) / 4));
-        };
-    }
-
-    // ---------- course geometry (simplified stadium scaled to the official lap / straight length) ----------
-    function geometry(c) {
-        if (c.kind === "straight") return { kind: "straight", L: c.straight_m, S: c.straight_m, r: 0, left: true, w: c.width_min_m };
-        const r = (c.loop_m - 2 * c.straight_m) / (2 * Math.PI);
-        return { kind: "loop", L: c.loop_m, S: c.straight_m, r: r, left: c.direction === "左", w: c.width_min_m };
-    }
-
-    // u: metres from the finish line along the running direction; lat: metres outward from the inner rail
-    function mapPos(g, u, lat) {
-        if (g.kind === "straight") return { x: g.S / 2 + u, y: lat - g.w / 2 };
-        const L = g.L, S = g.S, r = g.r, R = r + lat;
-        u = ((u % L) + L) % L;
-        let x, y;
-        if (u < Math.PI * r) { const th = -Math.PI / 2 + u / r; x = S / 2 + R * Math.cos(th); y = R * Math.sin(th); }
-        else if (u < Math.PI * r + S) { x = S / 2 - (u - Math.PI * r); y = R; }
-        else if (u < 2 * Math.PI * r + S) { const th = Math.PI / 2 + (u - Math.PI * r - S) / r; x = -S / 2 + R * Math.cos(th); y = R * Math.sin(th); }
-        else { x = -S / 2 + (u - 2 * Math.PI * r - S); y = -R; }
-        return { x: g.left ? x : -x, y: y };
-    }
+    const { makeCurve, geometry, mapPos } = window.RaceCurves;
 
     function uOf(S_, d) { return d - S_.D; } // distance run -> metres from the finish line (negative = before it)
 
@@ -390,6 +337,7 @@
     async function setRace(race) {
         if (raf) cancelAnimationFrame(raf), raf = null;
         S = null; lastTs = null;
+        const token = ++reqId;
         const res = $("replay-result"); if (res) res.innerHTML = ""; const rk = $("replay-rank"); if (rk) rk.innerHTML = "";
         const q = new URLSearchParams({ venue: race.track_name, surface: race.surface_type, distance: race.distance, variant: race.course_variant || "" });
         let replay = null, course = null, msg = "";
@@ -398,8 +346,10 @@
             const j = await r.json();
             if (j.status === "success") { replay = j; course = j.course; } else { msg = j.message; }
         } catch (e) { msg = "リプレイデータの取得に失敗しました。"; }
+        if (token !== reqId) return;
         if (!course) {
             try { const r = await fetch(`/api/course?${q}`); const j = await r.json(); if (j.status === "success") course = j.course; else msg = msg || j.message; } catch (e) { /* ignore */ }
+            if (token !== reqId) return;
         }
         const simBtn = $("btn-simulate"), realBtn = $("btn-real");
         if (realBtn) realBtn.classList.add("d-none");
@@ -408,6 +358,7 @@
         CUR = { race, course };
         if (simBtn) simBtn.disabled = !(race.horses && race.horses.length >= 2);
         fit(); setBadges(course);
+        if (!replay && !(race.horses && race.horses.length)) { setNote("出走馬のデータがありません。", true); clear(); return; }
         let runners, has = !!replay;
         if (has) runners = replay.runners; else runners = race.horses.map(h => ({ horse_number: h.horse_number, horse_name: h.horse_name, frame: null, finish: null, time_s: null, last3f_s: null }));
         S = buildState(course, runners, race, has);
@@ -423,6 +374,7 @@
     async function startSimulation() {
         if (!CUR) return;
         const { race, course } = CUR;
+        const token = ++reqId;
         const horses = race.horses;
         const stage = parseInt(($("select-ability-stage") || { value: "1" }).value, 10);
         const say0 = $("broadcast-commentary-text");
@@ -432,6 +384,7 @@
                 body: JSON.stringify({ race_id: race.race_id, stage, horses: horses.map(h => ({ horse_number: h.horse_number, odds: h.odds })) }) });
             ab = await r.json();
         } catch (e) { ab = { status: "error", message: "通信に失敗しました。" }; }
+        if (token !== reqId) return;
         if (ab.status !== "success") {
             setNote(`シミュレーションできません: ${ab.message}`, true);
             if (say0) say0.textContent = `シミュレーションできません: ${ab.message}`;
@@ -443,8 +396,16 @@
             const j = await (await fetch(`/api/baseline?${q}`)).json();
             if (j.status === "success" && j.baseline) base = j.baseline;
         } catch (e) { /* use the rough approximation */ }
+        if (token !== reqId) return;
         if (!base) base = RaceSim.fallbackBase(race.distance, course.surface);
-        const runners = RaceSim.simulate(horses, base, { probs: horses.map(h => ab.probs[String(h.horse_number)]) });
+        const probs = horses.map(h => ab.probs[String(h.horse_number)]);
+        if (probs.some(v => !(v > 0))) {
+            const m = "一部の馬の勝率が得られませんでした。";
+            setNote(`シミュレーションできません: ${m}`, true);
+            const say1 = $("broadcast-commentary-text"); if (say1) say1.textContent = `シミュレーションできません: ${m}`;
+            return;
+        }
+        const runners = RaceSim.simulate(horses, base, { probs });
         runners.forEach(r => { const h = horses.find(x => x.horse_number === r.horse_number); r.jockey = h ? h.jockey_name : ""; });
         if (raf) cancelAnimationFrame(raf), raf = null;
         lastTs = null;

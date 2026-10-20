@@ -37,13 +37,15 @@ def stage1_probs(db_path: str, race_id: str, horse_numbers: List[int], bundle: d
     df = ds.load_race(db_path, race_id, bundle["feature_version"])
     if df.empty:
         raise AbilityError("このレースの出走馬が過去データ(keiba.db)にありません。")
-    df, _, _ = ds.prepare(df, upcoming=True)
-    df = df[df["horse_number"].isin([int(n) for n in horse_numbers])].copy()
-    if df.empty:
-        raise AbilityError("このコース（障害など）は、能力モデルの対象外です。")
-    missing = sorted(set(int(n) for n in horse_numbers) - set(df["horse_number"].astype(int)))
+    wanted = {int(n) for n in horse_numbers}
+    missing = sorted(wanted - set(df["horse_number"].astype(int)))
     if missing:
         raise AbilityError(f"出走馬の一部（{missing}番）が過去データにありません。")
+    # scratched horses must not count in field size / relative features: keep only the real starters first
+    df = df[df["horse_number"].isin(wanted)].copy()
+    df, _, _ = ds.prepare(df, upcoming=True)
+    if df.empty:
+        raise AbilityError("このコース（障害など）は、能力モデルの対象外です。")
     feats = bundle["feature_cols"]
     absent = [c for c in feats if c not in df.columns]
     if absent:

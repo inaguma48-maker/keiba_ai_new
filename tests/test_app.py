@@ -214,3 +214,15 @@ def test_version_and_cache_busting():
     html = c.get("/").get_data(as_text=True)
     assert f"replay.js?v={v['version']}" in html and f"app.js?v={v['version']}" in html
     assert v["version"] in html and "起動しているフォルダ" in html
+
+
+def test_predict_keeps_the_course_variant():
+    import app as app_module
+    from src.db import get_race_by_id
+    c = app_module.app.test_client()
+    horses = [{"horse_number": i + 1, "horse_name": f"馬{i+1}", "odds": 3.0 + i} for i in range(4)]
+    r = c.post("/api/predict", data=json.dumps({"race_id": "VAR_TEST", "race_name": "t", "track_name": "京都", "surface_type": "芝",
+                                                "distance": 2000, "course_variant": "外", "horses": horses}), content_type="application/json")
+    assert r.status_code == 200 and get_race_by_id("VAR_TEST").course_variant == "外"
+    bad = c.post("/api/ability", json={"race_id": "x", "stage": "abc", "horses": horses})
+    assert bad.status_code == 400

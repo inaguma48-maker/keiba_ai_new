@@ -122,7 +122,10 @@ def ability():
     data = request.get_json() or {}
     horses = data.get("horses") or []
     try:
-        stage = int(data.get("stage", 1))
+        try:
+            stage = int(data.get("stage", 1))
+        except (TypeError, ValueError):
+            return jsonify({"status": "error", "message": "層は 1 または 2 を指定してください。"}), 400
         if len(horses) < 2:
             return jsonify({"status": "error", "message": "出走馬が2頭以上必要です。"}), 400
         bundle = latest_bundle()
@@ -253,6 +256,7 @@ def predict_race():
             track_condition=data.get("track_condition", "良"),
             weather=data.get("weather", "晴"),
             horses=horses,
+            course_variant=str(data.get("course_variant", "")),
         )
         save_race(race)
         return jsonify({"status": "success", "notice": NOTICE, "race": race.to_dict(), "predictions": market_view(race)})

@@ -3,7 +3,7 @@
 import hashlib
 import os
 
-FILES = ("app.py", "templates/index.html", "static/app.js", "static/replay.js", "static/sim.js",
+FILES = ("app.py", "templates/index.html", "static/app.js", "static/replay.js", "static/sim.js", "static/curves.js",
          "src/replay.py", "src/jra_site.py", "keiba/predict.py")
 
 

@@ -113,3 +113,21 @@ def test_check_setup_reports_each_item(env, monkeypatch):
     assert "[OK] keiba.db" in text and "[OK] 能力モデル" in text
     assert "結果の再生ができます" in text and "層1の予測ができます" in text and "層2の予測ができます" in text
     assert "[NG] アプリが応答しません" in text                              # reported, not raised
+
+
+def test_scratched_horse_does_not_change_the_others_inputs(env, tmp_path):
+    """Stage1 for the starters must equal Stage1 computed on a DB that never had the scratched horse."""
+    bundle = latest_bundle(env["models"])
+    rid, nums = _flat_race(env["db"])
+    scratched, starters = nums[-1], nums[:-1]
+    with_scratch = stage1_probs(env["db"], rid, starters, bundle)
+    other = tmp_path / "without.db"
+    shutil.copy(env["db"], other)
+    con = sqlite3.connect(other)
+    hid = con.execute("select horse_id from race_entries where race_id=? and horse_number=?", (rid, scratched)).fetchone()[0]
+    con.execute("delete from race_entries where race_id=? and horse_number=?", (rid, scratched))
+    con.execute("delete from horse_features where race_id=? and horse_id=?", (rid, hid))
+    con.commit(); con.close()
+    without = stage1_probs(str(other), rid, starters, bundle)
+    assert with_scratch.keys() == without.keys()
+    assert all(abs(with_scratch[k] - without[k]) < 1e-12 for k in with_scratch)
