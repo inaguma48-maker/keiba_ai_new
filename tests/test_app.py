@@ -204,3 +204,13 @@ def test_flask_api_endpoints(monkeypatch):
     assert txt["status"] == "success" and len(txt["predictions"]) == 2
     empty = client.post("/api/import_jra", data=json.dumps({"text_content": "読めない文字列"}), content_type="application/json")
     assert empty.status_code == 400
+
+
+def test_version_and_cache_busting():
+    import app as app_module
+    c = app_module.app.test_client()
+    v = c.get("/api/version").get_json()
+    assert len(v["version"]) == 8 and v["folder"]
+    html = c.get("/").get_data(as_text=True)
+    assert f"replay.js?v={v['version']}" in html and f"app.js?v={v['version']}" in html
+    assert v["version"] in html and "起動しているフォルダ" in html

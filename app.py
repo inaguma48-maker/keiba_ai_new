@@ -13,6 +13,7 @@ from flask import Flask, jsonify, request, render_template
 from typing import Any, Dict, List
 
 from src.models import RaceInfo, HorseEntry
+from src.version import code_version
 from src.data import get_sample_races
 from src.jra_importer import parse_jra_text
 from src.jra_site import JraClient, JraSiteError, card_to_race_info, cname_from_url, pick_target_date
@@ -23,6 +24,10 @@ from keiba.predict import AbilityError, latest_bundle, stage_probs
 from src.db import init_db, save_race, get_race_by_id, list_all_races
 
 app = Flask(__name__)
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+VERSION = code_version(APP_DIR)
 JRA_RAW_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "raw", "jra")
 NOTICE = ("表示の確率は、オッズから計算した市場の見立て（払戻率分を除き、合計を100%にした値）です。"
           "AIの予測ではありません。")
@@ -66,7 +71,12 @@ def _process_cards(cards):
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return render_template("index.html", v=VERSION, folder=APP_DIR)
+
+
+@app.route("/api/version", methods=["GET"])
+def version():
+    return jsonify({"version": VERSION, "folder": APP_DIR})
 
 
 @app.route("/api/races", methods=["GET"])

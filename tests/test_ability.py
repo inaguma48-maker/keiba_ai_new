@@ -101,3 +101,15 @@ def test_ability_api(env, monkeypatch):
     assert bad.status_code == 404
     monkeypatch.setenv("KEIBA_MODEL_DIR", str(env["dir"] / "empty"))
     assert "未作成" in c.post("/api/ability", json={"race_id": rid, "stage": 1, "horses": horses}).get_json()["message"]
+
+
+def test_check_setup_reports_each_item(env, monkeypatch):
+    import importlib.util, os
+    monkeypatch.setenv("KEIBA_DB", env["db"]); monkeypatch.setenv("KEIBA_MODEL_DIR", env["models"])
+    spec = importlib.util.spec_from_file_location("check_setup", os.path.join(os.path.dirname(__file__), "..", "tools", "check_setup.py"))
+    cs = importlib.util.module_from_spec(spec); spec.loader.exec_module(cs)
+    lines = cs.run_checks(app_url="http://127.0.0.1:9")                 # nothing listens there
+    text = "\n".join(f"[{s}] {m}" for s, m in lines)
+    assert "[OK] keiba.db" in text and "[OK] 能力モデル" in text
+    assert "結果の再生ができます" in text and "層1の予測ができます" in text and "層2の予測ができます" in text
+    assert "[NG] アプリが応答しません" in text                              # reported, not raised

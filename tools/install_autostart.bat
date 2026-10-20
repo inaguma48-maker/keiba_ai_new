@@ -16,6 +16,7 @@ if not defined PYW (
 )
 echo [1/5] Stopping the running app if any ...
 powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*keiba_app*app.py*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"
+powershell -NoProfile -Command "Get-NetTCPConnection -LocalPort 5000 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { $p = Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue; if ($p -and $p.ProcessName -like 'python*') { Stop-Process -Id $p.Id -Force } }"
 echo [2/5] Copying the app to "%DEST%" ...
 robocopy "%SRC%" "%DEST%" /E /XD .git data models __pycache__ /XF racing_app.db >nul
 if errorlevel 8 (
@@ -48,6 +49,13 @@ echo [5/5] Registering the startup entry and starting the app ...
 echo CreateObject("Wscript.Shell").Run """%PYW%"" ""%DEST%\app.py""", 0, False > "%STARTUP%\keiba_viewer.vbs"
 powershell -NoProfile -Command "$d=[Environment]::GetFolderPath('Desktop'); Set-Content -Path (Join-Path $d 'keiba-viewer.url') -Value @('[InternetShortcut]','URL=http://localhost:5000')"
 wscript "%STARTUP%\keiba_viewer.vbs"
+echo.
+echo Waiting for the app to start ...
+timeout /t 6 /nobreak >nul
+echo ===== Self-check =====
+set PYTHONIOENCODING=utf-8
+python "%DEST%\tools\check_setup.py"
+echo ======================
 echo.
 echo Done. Open http://localhost:5000 - a shortcut keiba-viewer is on the Desktop.
 echo The app now starts by itself when you log in to Windows.
