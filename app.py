@@ -192,4 +192,11 @@ def predict_race():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    # Under pythonw (background start) there is no console: write output to a log file instead.
+    if sys.stdout is None or sys.stderr is None:
+        log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+        os.makedirs(log_dir, exist_ok=True)
+        sys.stdout = sys.stderr = open(os.path.join(log_dir, "viewer.log"), "a", encoding="utf-8", buffering=1)
+    # Local only by default. KEIBA_HOST=0.0.0.0 allows other devices on the same network (e.g. a phone).
+    app.run(host=os.environ.get("KEIBA_HOST", "127.0.0.1"), port=int(os.environ.get("KEIBA_PORT", "5000")),
+            debug=os.environ.get("KEIBA_DEBUG") == "1")
