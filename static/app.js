@@ -413,19 +413,35 @@ document.addEventListener("DOMContentLoaded", () => {
             if (badgeLiveTv) badgeLiveTv.classList.remove("d-none");
             const startTime = Date.now();
 
+            const topHorse = (simPredictions && simPredictions.length > 0)
+                ? simPredictions[0]
+                : (currentRace && currentRace.horses.length > 0 ? currentRace.horses[0] : null);
+
+            const topHorseName = topHorse ? `${topHorse.horse_number}番 ${topHorse.horse_name}` : "1番人気馬";
+
             function animate() {
                 if (!simRunning) return;
                 simProgress += 0.0035;
                 const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(1);
                 if (simLiveTime) simLiveTime.textContent = `${elapsedSec}秒`;
 
+                // Energetic Uma Musume Style Dynamic Live Commentary Lines
                 if (commentaryText) {
-                    if (simProgress < 0.1) commentaryText.textContent = "ゲートが一斉に開いた！綺麗なスタートを切りました！";
-                    else if (simProgress < 0.35) commentaryText.textContent = "各馬向正面へと差し掛かります。激しい先行争いが続いています！";
-                    else if (simProgress < 0.65) commentaryText.textContent = "レースは第3コーナーから第4コーナーへ！手応え良く後続を引き離します！";
-                    else if (simProgress < 0.88) commentaryText.textContent = "さあ最終直線だ！坂を駆け上がる！外からAI本命馬が猛烈な追い上げ！";
-                    else if (simProgress < 1.0) commentaryText.textContent = "大歓声の中、ゴール板前接戦！激しい追い比べ！";
-                    else commentaryText.textContent = "各馬ゴールイン！見事な一戦となりました！";
+                    if (simProgress < 0.1) {
+                        commentaryText.textContent = "🎺 ファンファーレが響き渡る！ファンが固唾をのんで見守る中…ファンファーレが鳴り止み、ゲートが開いたーっ！！綺麗なスタート！";
+                    } else if (simProgress < 0.3) {
+                        commentaryText.textContent = `さあ各ウマ娘・名馬が一斉に飛び出した！激しいハナの奪い合い！先頭に立つのは ${topHorseName}！素晴らしい立ち上がりだーっ！`;
+                    } else if (simProgress < 0.55) {
+                        commentaryText.textContent = "向正面を通過！隊列が固まり始める！後続集団も一歩も引かない！息をのむ展開、勝負の第3コーナーへ！";
+                    } else if (simProgress < 0.75) {
+                        commentaryText.textContent = "第4コーナー旋回！ここからが勝負の分かれ目！さあスパートをかけるぞ！各馬一斉にスパートだーっ！！";
+                    } else if (simProgress < 0.92) {
+                        commentaryText.textContent = `🔥 栄光の最終直線！坂を駆け上がる！「負けられない、絶対に譲れない！」${topHorseName} がラストスパート！限界を超えて加速するーっ！！`;
+                    } else if (simProgress < 1.0) {
+                        commentaryText.textContent = `最後の力を振り絞る！並んだ、交わすか！「届いてくれーーっ！！」大観声に包まれる感動のゴール前大接戦！！`;
+                    } else {
+                        commentaryText.textContent = `🏁 ゴールイン！！見事勝利を掴み取ったのは ${topHorseName} だーっ！！素晴らしい走り、歴史に刻まれる圧巻の勝利です！！`;
+                    }
                 }
 
                 drawTrackCanvas(currentRace, simProgress);
@@ -433,7 +449,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (simProgress >= 1.0) {
                     simRunning = false;
                     if (badgeLiveTv) badgeLiveTv.classList.add("d-none");
-                    if (simLiveTime) simLiveTime.textContent = `${elapsedSec}秒 (GOAL!)`;
+                    if (simLiveTime) simLiveTime.textContent = `${elapsedSec}秒 (ウイニングライブ!)`;
                 } else {
                     simAnimId = requestAnimationFrame(animate);
                 }
@@ -449,7 +465,7 @@ document.addEventListener("DOMContentLoaded", () => {
             simProgress = 0;
             if (badgeLiveTv) badgeLiveTv.classList.add("d-none");
             if (simLiveTime) simLiveTime.textContent = "0.0秒";
-            if (commentaryText) commentaryText.textContent = "出走準備完了。スタートボタンを押すとAIリアル中継シミュレーションが始まります。";
+            if (commentaryText) commentaryText.textContent = "出走準備完了！「実況中継スタート」を押すとウマ娘風熱血AIライブ実況が始まります！";
             drawTrackCanvas(currentRace, 0);
         });
     }
