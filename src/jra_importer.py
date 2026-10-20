@@ -5,9 +5,7 @@ Specialized support for G3 Sirius Stakes and all JRA dirt/turf races.
 """
 
 import re
-import urllib.request
 import uuid
-from bs4 import BeautifulSoup
 from typing import Dict, Any, List, Optional
 from src.models import RaceInfo, HorseEntry
 
@@ -56,6 +54,15 @@ KNOWN_JOCKEYS = [
     '松山', '松山弘平', '岩田望', '岩田望来', '横山武', '横山武史', '藤岡佑', 'M.デムーロ',
     '戸崎', '戸崎圭太', '丹内', '菅原', '三浦', '佐々木', '田辺', '津村', '鮫島克', '西村淳'
 ]
+
+def _extract_odds(line: str) -> Optional[float]:
+    """Odds from a pasted line: the number followed by 倍, else the last decimal when there are two or more."""
+    with_unit = re.findall(r'(\d+\.\d+)\s*倍', line)
+    if with_unit:
+        return float(with_unit[-1])
+    decimals = re.findall(r'\d+\.\d+', line)
+    return float(decimals[-1]) if len(decimals) >= 2 else None
+
 
 def parse_jra_text(text_content: str, race_name_override: Optional[str] = None) -> RaceInfo:
     """
@@ -108,17 +115,21 @@ def parse_jra_text(text_content: str, race_name_override: Optional[str] = None) 
         if not h_name:
             continue
 
-        # Extract Odds (e.g. 45.1倍 or 45.1)
-        odds_match = re.search(r'(\d+\.\d+)\s*倍?', line)
-        odds = float(odds_match.group(1)) if odds_match else max(1.1, float(h_num * 2.5))
+        odds = _extract_odds(line)
+        if odds is None:
+            continue  # odds are never guessed
 
         # Extract Weight (e.g. 480kg or 480(+2))
         w_match = re.search(r'(\d{3})\s*kg', line) or re.search(r'(\d{3})\s*\([+-]?\d+\)', line)
         weight = float(w_match.group(1)) if w_match else 490.0
 
         # Extract Impost (e.g. 55.0kg or 55.0)
-        imp_match = re.search(r'(\d{2}\.\d)\s*kg?', line)
-        impost = float(imp_match.group(1)) if imp_match else 56.0
+        imp_match = re.search(r'(\d{2}\.\d)\s*kg', line)
+        if imp_match:
+            impost = float(imp_match.group(1))
+        else:  # no unit: 斤量 is the decimal before the odds
+            decimals = re.findall(r'\d+\.\d+', line)
+            impost = float(decimals[0]) if len(decimals) >= 2 and 40.0 <= float(decimals[0]) <= 70.0 else 56.0
 
         # Extract Jockey Name
         jockey = "騎手"
@@ -143,24 +154,11 @@ def parse_jra_text(text_content: str, race_name_override: Optional[str] = None) 
             jockey_win_rate=jockey_win,
             trainer_win_rate=0.18,
             track_aptitude=0.85,
-            odds=max(1.1, odds)
+            odds=odds
         ))
 
-    if not horses or ("シリウス" in text_content and len(horses) < 3):
-        race_name = "第28回 シリウスステークス (G3)"
-        track_name = "中京"
-        surface_type = "ダート"
-        distance = 1900
-        horses = [
-            HorseEntry(1, "ヤマニンウルス", "武豊", "斉藤崇", 4, 536, 57.0, 98.0, 0.80, 0.25, 0.22, 0.95, 1.8),
-            HorseEntry(2, "ハギノピリナ", "藤岡佑", "高野", 5, 492, 54.0, 91.0, 0.35, 0.16, 0.18, 0.85, 12.5),
-            HorseEntry(3, "オメガギネス", "岩田望", "大和田", 4, 498, 57.5, 95.0, 0.50, 0.20, 0.20, 0.90, 3.5),
-            HorseEntry(4, "カンピオーネ", "横山武", "栗田", 5, 510, 56.0, 90.0, 0.30, 0.18, 0.16, 0.82, 15.0),
-            HorseEntry(5, "ヴァンヤール", "荻野極", "庄野", 6, 508, 57.0, 92.5, 0.38, 0.15, 0.17, 0.88, 8.2),
-            HorseEntry(6, "サンライズウルス", "松山", "安田", 6, 502, 57.0, 89.0, 0.28, 0.19, 0.15, 0.80, 22.0),
-            HorseEntry(7, "サンマルパトロール", "M.デムーロ", "大橋", 4, 480, 55.0, 93.0, 0.42, 0.17, 0.16, 0.86, 6.8),
-            HorseEntry(8, "フタイテンロック", "秋山稔", "佐藤", 5, 486, 54.0, 86.5, 0.20, 0.12, 0.12, 0.75, 45.0)
-        ]
+    if not horses:
+        raise ValueError("出馬表から馬名とオッズを読み取れませんでした。「馬番 馬名 騎手 斤量 オッズ」の形式で貼り付けてください。")
 
     race_id = f"JRA_IMP_{uuid.uuid4().hex[:8]}"
 
@@ -174,247 +172,3 @@ def parse_jra_text(text_content: str, race_name_override: Optional[str] = None) 
         weather="晴",
         horses=horses
     )
-
-
-def fetch_and_parse_jra_url(url: str) -> RaceInfo:
-    """
-    Fetches HTML from a JRA or netkeiba racecard URL and parses it.
-    Specially crafted to handle netkeiba race IDs and JRA official URL patterns (CP932/Shift_JIS encoding).
-    """
-    req = urllib.request.Request(
-        url,
-        headers={
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        }
-    )
-
-    try:
-        with urllib.request.urlopen(req, timeout=8) as response:
-            raw_data = response.read()
-
-        html = None
-        encodings_to_try = ["cp932", "shift_jis", "euc-jp", "utf-8"]
-        if "netkeiba" in url:
-            encodings_to_try = ["euc-jp", "utf-8", "cp932", "shift_jis"]
-
-        for enc in encodings_to_try:
-            try:
-                html = raw_data.decode(enc)
-                break
-            except Exception:
-                continue
-
-        if html is None:
-            html = raw_data.decode("utf-8", errors="ignore")
-
-        soup = BeautifulSoup(html, "html.parser")
-
-        # Metadata parsing
-        race_name = "JRA取り込みレース"
-        race_name_el = soup.find("span", class_="race_name") or soup.find("h2") or soup.find("title")
-        if race_name_el:
-            cleaned_title = re.sub(r'\s+', ' ', race_name_el.text).strip()
-            if cleaned_title and cleaned_title != "出馬表 JRA":
-                race_name = cleaned_title
-
-        track_name = "東京"
-        for t in ["中山", "阪神", "京都", "中京", "新潟", "福島", "小倉", "札幌", "函館", "東京"]:
-            if t in html:
-                track_name = t
-                break
-
-        surface_type = "ダート" if ("ダート" in html or "ダ1" in html or "ダ2" in html) else "芝"
-
-        dist_match = (
-            re.search(r'コース[：:]?\s*([\d,]+)', html) or
-            re.search(r'([\d,]+)\s*<span[^>]*>メートル', html) or
-            re.search(r'(\d{3,4})\s*メートル', html) or
-            re.search(r'(\d{3,4})\s*m', html)
-        )
-        distance = int(dist_match.group(1).replace(",", "")) if dist_match else 2000
-
-        horses: List[HorseEntry] = []
-
-        # Direct parsing for official JRA racecard structure (td.num and td.horse)
-        for tr in soup.find_all("tr"):
-            num_td = tr.find("td", class_="num")
-            horse_td = tr.find("td", class_="horse")
-            if not (num_td and horse_td):
-                continue
-
-            num_text = num_td.text.strip()
-            if not num_text.isdigit():
-                continue
-            h_num = int(num_text)
-
-            # Horse Name
-            a_tag = horse_td.find("a")
-            if a_tag:
-                h_name = clean_horse_name(a_tag.text.strip())
-            else:
-                first_line = horse_td.text.strip().split("\n")[0]
-                h_name = clean_horse_name(re.sub(r'[\d\.\(\)番人気]', '', first_line).strip())
-
-            if not h_name or len(h_name) < 2:
-                continue
-
-            # Odds & Popularity
-            horse_full = horse_td.text.strip()
-            odds_match = re.search(r'([1-9]\d*\.\d+)\s*\(\d+番?人気\)', horse_full)
-            odds = float(odds_match.group(1)) if odds_match else max(1.1, float(h_num * 2.5))
-
-            # Jockey & Impost
-            jockey_td = tr.find("td", class_="jockey") or tr.find("td", class_=lambda c: c and "jockey" in c)
-            jockey_name = "騎手"
-            impost = 57.0
-            if jockey_td:
-                j_text = jockey_td.text.strip()
-                imp_match = re.search(r'(\d{2}\.\d)kg', j_text)
-                if imp_match:
-                    impost = float(imp_match.group(1))
-                lines = [l.strip() for l in j_text.split() if l.strip()]
-                for l in lines:
-                    if not re.search(r'牡|牝|セ|\d|kg|S|M|L', l) and len(l) <= 6:
-                        jockey_name = l
-                        break
-
-            speed_rating = 88.0 + (15.0 / max(odds, 1.1))
-            jockey_win = 0.25 if jockey_name in ["川田", "ルメール", "C.ルメール", "武豊", "武 豊", "坂井", "松山", "岩田望", "横山武"] else 0.15
-
-            horses.append(HorseEntry(
-                horse_number=h_num,
-                horse_name=h_name,
-                jockey_name=jockey_name,
-                trainer_name="JRA厩舎",
-                age=4,
-                weight=490.0,
-                impost=impost,
-                past_speed_rating=speed_rating,
-                past_win_rate=0.35,
-                jockey_win_rate=jockey_win,
-                trainer_win_rate=0.18,
-                track_aptitude=0.88,
-                odds=max(1.1, odds)
-            ))
-
-        # Fallback to general table rows
-        if not horses:
-            rows = soup.find_all("tr", class_=re.compile(r'HorseList|RaceTable01|shutuba')) or soup.find_all("tr")
-            for tr in rows:
-                tds = [td.text.strip() for td in tr.find_all(["td", "th"])]
-                if len(tds) >= 4:
-                    num_match = re.search(r'^\d+$', tds[0]) or re.search(r'^\d+$', tds[1])
-                    if num_match:
-                        h_num = int(num_match.group(0))
-                        h_name = None
-                        for td in tds[1:5]:
-                            clean_td = clean_horse_name(td)
-                            if len(clean_td) >= 2 and clean_td not in ["芝", "ダ", "良", "重", "牡", "牝"]:
-                                h_name = clean_td
-                                break
-
-                        if h_name and h_num:
-                            horses.append(HorseEntry(
-                                horse_number=h_num,
-                                horse_name=h_name,
-                                jockey_name="武豊" if h_num == 1 else "騎手",
-                                trainer_name="JRA厩舎",
-                                age=4,
-                                weight=500.0,
-                                impost=57.0,
-                                past_speed_rating=92.0,
-                                past_win_rate=0.35,
-                                jockey_win_rate=0.22,
-                                trainer_win_rate=0.18,
-                                track_aptitude=0.88,
-                                odds=3.5 if h_num == 1 else float(h_num * 2.5)
-                            ))
-
-        if len(horses) >= 3:
-            return RaceInfo(
-                race_id=f"JRA_IMP_{uuid.uuid4().hex[:8]}",
-                race_name=race_name,
-                track_name=track_name,
-                surface_type=surface_type,
-                distance=distance,
-                track_condition="良",
-                weather="晴",
-                horses=horses
-            )
-
-        full_text = "\n".join([" ".join([td.text.strip() for td in tr.find_all(["td", "th"])]) for tr in soup.find_all("tr")])
-        return parse_jra_text(full_text, race_name_override=race_name)
-
-    except Exception:
-        if "5A" in url or "04091120260927" in url or "sprinters" in url.lower():
-            sprinters_text = """
-            第58回 スプリンターズステークス (G1) 中山 芝1200m
-            1 1 レッドモンレーヴ 横山武 58.0 12.0
-            1 2 トウシンマカオ 菅原明 58.0 8.5
-            2 3 ビクターザウィナー モレイラ 58.0 6.0
-            2 4 エイシンスポッター 鮫島克 58.0 25.0
-            3 5 ナムラクレア 長岡 56.0 5.2
-            3 6 ママコチャ 川田 56.0 4.8
-            4 7 ウインマーベル 松山 58.0 15.0
-            4 8 モズメイメイ 国分恭 56.0 35.0
-            5 9 スターアニス ルメール 56.0 3.2
-            5 10 ピューロマジック 横山和 54.0 18.0
-            6 11 ダノンスコーピオン 津村 58.0 40.0
-            6 12 サトノレーヴ レーン 58.0 2.8
-            7 13 ピューロマジック 坂井 54.0 20.0
-            7 14 ウインカーネリアン 三浦 58.0 22.0
-            8 15 ムガル 丹内 58.0 50.0
-            8 16 ウイングレイテスト 松岡 58.0 45.0
-            """
-            return parse_jra_text(sprinters_text, race_name_override="第58回 スプリンターズステークス (G1)")
-        return parse_jra_text(f"URL: {url}\nシリウスステークス (G3) 中京 ダート1900m", race_name_override="第28回 シリウスステークス (G3)")
-
-
-def auto_detect_jra_races() -> List[RaceInfo]:
-    """
-    Automatically detects active/latest JRA racecards and real-time odds from official JRA entry portals without requiring a manual URL.
-    Attempts live fetch from top JRA endpoints, falling back seamlessly to live racecard snapshots.
-    """
-    jra_official_top_urls = [
-        "https://www.jra.go.jp/JRADB/accessD.html?CNAME=pw01dde0106202604091120260927/5A",
-        "https://www.jra.go.jp/JRADB/accessD.html?CNAME=pw01dde0109202604081120260926/08",
-        "https://race.netkeiba.com/race/shutuba.html?race_id=202407040811"
-    ]
-
-    detected_races: List[RaceInfo] = []
-
-    for url in jra_official_top_urls:
-        try:
-            race = fetch_and_parse_jra_url(url)
-            if race and len(race.horses) >= 3:
-                detected_races.append(race)
-        except Exception:
-            continue
-
-    if not detected_races:
-        # Guarantee structured fallback racecards if external connectivity is constrained
-        fallback_1 = parse_jra_text("""
-        第58回 スプリンターズステークス (G1) 中山 芝1200m 良
-        1 1 サトノレーヴ レーン 58.0 2.8
-        2 2 ママコチャ 川田 56.0 4.8
-        3 3 ナムラクレア 坂井 56.0 5.2
-        4 4 ビクターザウィナー モレイラ 58.0 6.0
-        5 5 トウシンマカオ 菅原明 58.0 8.5
-        6 6 スターアニス ルメール 56.0 9.2
-        7 7 ウインマーベル 松山 58.0 15.0
-        8 8 ピューロマジック 横山和 54.0 18.0
-        """, race_name_override="自動検出: 第58回 スプリンターズステークス (G1)")
-
-        fallback_2 = parse_jra_text("""
-        第28回 シリウスステークス (G3) 中京 ダート1900m 良
-        1 ヤマニンウルス 武豊 57.0 1.8
-        2 オメガギネス 岩田望 57.5 3.5
-        3 サンマルパトロール M.デムーロ 55.0 6.8
-        4 ヴァンヤール 荻野極 57.0 8.2
-        5 ハギノピリナ 藤岡佑 54.0 12.5
-        6 カンピオーネ 横山武 56.0 15.0
-        """, race_name_override="自動検出: 第28回 シリウスステークス (G3)")
-
-        detected_races = [fallback_1, fallback_2]
-
-    return detected_races

@@ -2,6 +2,7 @@
 Unit and Integration Tests for Horse Racing AI System.
 """
 
+import os
 import pytest
 import json
 import pandas as pd
@@ -9,7 +10,7 @@ from src.models import RaceInfo, HorseEntry, JRA_TRACK_PROFILES
 from src.data import extract_features, generate_synthetic_historical_data, get_sample_races
 from src.predictor import HorseRacePredictor
 from src.strategy import calculate_betting_recommendations
-from src.jra_importer import parse_jra_text, fetch_and_parse_jra_url, clean_horse_name, auto_detect_jra_races
+from src.jra_importer import parse_jra_text, clean_horse_name
 from src.db import init_db, save_race, get_race_by_id, list_all_races
 from app import app
 
@@ -141,78 +142,65 @@ def test_sirius_stakes_parser():
     assert race.horses[0].horse_name == "ヤマニンウルス"
     assert race.horses[0].jockey_name == "武豊"
 
-def test_sirius_stakes_url_import():
-    url = "https://race.netkeiba.com/race/shutuba.html?race_id=202407040811"
-    race = fetch_and_parse_jra_url(url)
-    assert race is not None
-    assert len(race.horses) >= 3
 
-def test_jra_cp932_encoding_url_import():
-    jra_official_url = "https://www.jra.go.jp/JRADB/accessD.html?CNAME=pw01dde0109202604081120260926/08"
-    race = fetch_and_parse_jra_url(jra_official_url)
-    assert race is not None
-    assert race.race_name is not None
-    assert len(race.horses) >= 1
+def test_parse_text_never_guesses_odds_or_falls_back():
+    # 斤量 then オッズ: the odds must not be read from the 斤量 column
+    race = parse_jra_text("1 アルファホース 武豊 57.0 3.1\n2 ブラボーホース 川田 55.0 5.4")
+    assert [(h.impost, h.odds) for h in race.horses] == [(57.0, 3.1), (55.0, 5.4)]
+    # a line without odds is skipped, not given an invented value
+    race = parse_jra_text("1 アルファホース 武豊 57.0 3.1\n2 ブラボーホース 川田 55.0")
+    assert [h.horse_number for h in race.horses] == [1]
+    # nothing readable -> error, never a fixed sample race
+    with pytest.raises(ValueError):
+        parse_jra_text("シリウスステークス 中京 ダート1900m")
 
-def test_jra_sprinters_stakes_url_import():
-    sprinters_url = "https://www.jra.go.jp/JRADB/accessD.html?CNAME=pw01dde0106202604091120260927/5A"
-    race = fetch_and_parse_jra_url(sprinters_url)
-    assert race is not None
-    assert race.race_name is not None
-    assert len(race.horses) >= 1
 
-def test_auto_detect_jra_races():
-    races = auto_detect_jra_races()
-    assert len(races) >= 1
-    assert races[0].race_name is not None
-    assert len(races[0].horses) >= 3
+def test_flask_api_endpoints(monkeypatch):
+    import app as app_module
+    from src.jra_site import parse_meetings, parse_racecards
+    fx = os.path.join(os.path.dirname(__file__), "fixtures")
+    read = lambda n: open(os.path.join(fx, n), encoding="utf-8").read()
 
-def test_flask_api_endpoints():
+    class StubClient:
+        def __init__(self, *a, **k): pass
+        def fetch_meetings(self): return parse_meetings(read("jra_meetings.html"))
+        def fetch_meeting_racecards(self, meeting): return parse_racecards(read("jra_racecards.html"))
+        def fetch_by_cname(self, page, cname): return parse_racecards(read("jra_racecards.html"))
+
+    monkeypatch.setattr(app_module, "JraClient", StubClient)
     client = app.test_client()
 
-    # Test GET /api/races
     res = client.get("/api/races")
-    assert res.status_code == 200
-    data = res.get_json()
-    assert data["status"] == "success"
-    assert len(data["races"]) >= 2
+    assert res.status_code == 200 and len(res.get_json()["races"]) >= 2
 
-    # Test GET /api/races/<race_id>
-    res_detail = client.get("/api/races/R2026_01")
-    assert res_detail.status_code == 200
-    detail_data = res_detail.get_json()
-    assert detail_data["status"] == "success"
-    assert detail_data["race"]["race_id"] == "R2026_01"
+    detail = client.get("/api/races/R2026_01").get_json()
+    assert detail["race"]["race_id"] == "R2026_01"
 
-    # Test POST /api/predict
-    sample_race = get_sample_races()[0]
-    res_pred = client.post(
-        "/api/predict",
-        data=json.dumps(sample_race.to_dict()),
-        content_type="application/json"
-    )
-    assert res_pred.status_code == 200
-    pred_data = res_pred.get_json()
-    assert pred_data["status"] == "success"
-    assert len(pred_data["predictions"]) == len(sample_race.horses)
+    # market view: probabilities come from the odds only
+    sample = get_sample_races()[0]
+    pred = client.post("/api/predict", data=json.dumps(sample.to_dict()), content_type="application/json").get_json()
+    assert pred["status"] == "success" and len(pred["predictions"]) == len(sample.horses)
+    assert abs(sum(p["market_probability"] for p in pred["predictions"]) - 1.0) < 0.01
+    assert [p["odds"] for p in pred["predictions"]] == sorted(p["odds"] for p in pred["predictions"])
+    for banned in ("recommendations", "confidence_score"):
+        assert banned not in pred
+    assert "AIの予測ではありません" in pred["notice"]
 
-    # Test POST /api/auto_fetch_jra
-    res_auto = client.post("/api/auto_fetch_jra")
-    assert res_auto.status_code == 200
-    auto_data = res_auto.get_json()
-    assert auto_data["status"] == "success"
-    assert len(auto_data["results"]) >= 1
+    # JRA auto fetch (stubbed; no network)
+    auto = client.post("/api/auto_fetch_jra").get_json()
+    assert auto["status"] == "success" and len(auto["results"]) == 1
+    r = auto["results"][0]
+    assert r["race"]["race_id"] == "202610170511" and len(r["predictions"]) == 2   # scratched horse excluded
+    assert "recommendations" not in r
 
-    # Test POST /api/import_jra for Sirius Stakes
-    res_import = client.post(
-        "/api/import_jra",
-        data=json.dumps({
-            "text_content": "第28回 シリウスステークス (G3) 中京 ダ1900m\n1 ヤマニンウルス 武豊 57.0 1.8\n2 オメガギネス 岩田望 57.5 3.5"
-        }),
-        content_type="application/json"
-    )
-    assert res_import.status_code == 200
-    import_data = res_import.get_json()
-    assert import_data["status"] == "success"
-    assert "predictions" in import_data
-    assert "シリウス" in import_data["race"]["race_name"]
+    # URL import and text import
+    url = client.post("/api/import_jra", data=json.dumps(
+        {"url": "https://www.jra.go.jp/JRADB/accessD.html?CNAME=pw01drl10052026040620261017/16"}), content_type="application/json")
+    assert url.status_code == 200 and url.get_json()["status"] == "success"
+    bad = client.post("/api/import_jra", data=json.dumps({"url": "https://example.com/x"}), content_type="application/json")
+    assert bad.status_code == 502
+    txt = client.post("/api/import_jra", data=json.dumps({"text_content": "1 アルファホース 武豊 57.0 3.1\n2 ブラボーホース 川田 55.0 5.4"}),
+                      content_type="application/json").get_json()
+    assert txt["status"] == "success" and len(txt["predictions"]) == 2
+    empty = client.post("/api/import_jra", data=json.dumps({"text_content": "読めない文字列"}), content_type="application/json")
+    assert empty.status_code == 400

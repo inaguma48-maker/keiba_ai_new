@@ -4,15 +4,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const selectRace = document.getElementById("select-race");
     const btnLoadRace = document.getElementById("btn-load-race");
     const btnRecalculate = document.getElementById("btn-recalculate");
-    const btnRetrain = document.getElementById("btn-retrain");
     const formAddHorse = document.getElementById("form-add-horse");
     const formImportJra = document.getElementById("form-import-jra");
     const btnAutoDetectJra = document.getElementById("btn-auto-detect-jra");
 
     const displayRaceName = document.getElementById("display-race-name");
     const displayRaceMeta = document.getElementById("display-race-meta");
-    const confidenceContainer = document.getElementById("confidence-container");
-    const displayConfidence = document.getElementById("display-confidence");
     const tbodyPredictions = document.getElementById("tbody-predictions");
 
     // Canvas Simulation & Broadcast TV Elements
@@ -519,7 +516,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // One-Click JRA Auto Detection Event Listener
     if (btnAutoDetectJra) {
         btnAutoDetectJra.addEventListener("click", async () => {
-            tbodyPredictions.innerHTML = '<tr><td colspan="6" class="text-center py-4"><div class="spinner-border text-warning" role="status"></div><div class="mt-2 text-dark fw-bold">JRA公式最新レース・オッズを自動検出中...</div></td></tr>';
+            tbodyPredictions.innerHTML = '<tr><td colspan="4" class="text-center py-4"><div class="spinner-border text-warning" role="status"></div><div class="mt-2 text-dark fw-bold">JRA公式最新レース・オッズを自動検出中...</div></td></tr>';
 
             try {
                 const res = await fetch("/api/auto_fetch_jra", { method: "POST" });
@@ -531,14 +528,10 @@ document.addEventListener("DOMContentLoaded", () => {
                     displayRaceName.textContent = firstResult.race.race_name;
                     displayRaceMeta.textContent = `${firstResult.race.track_name}競馬場 | ${firstResult.race.surface_type}${firstResult.race.distance}m | 馬場: ${firstResult.race.track_condition} | 天候: ${firstResult.race.weather} (自動検出完了)`;
                     renderPredictions(firstResult.predictions);
-                    renderRecommendations(firstResult.recommendations);
-
-                    confidenceContainer.classList.remove("d-none");
-                    displayConfidence.textContent = `${firstResult.recommendations.confidence_score}%`;
                     btnRecalculate.classList.remove("d-none");
 
                     await loadRaces(firstResult.race.race_id);
-                    alert(`${result.message}\n\n【注意】${result.warning || ""}`);
+                    alert(result.message);
                 } else {
                     alert("自動検出エラー: " + (result.message || "レースが見つかりませんでした"));
                 }
@@ -560,7 +553,7 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        tbodyPredictions.innerHTML = '<tr><td colspan="6" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-muted">JRA出馬表取り込み＆DB保存＆分析中...</div></td></tr>';
+        tbodyPredictions.innerHTML = '<tr><td colspan="4" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-muted">JRA出馬表取り込み＆DB保存＆分析中...</div></td></tr>';
 
         try {
             const res = await fetch("/api/import_jra", {
@@ -580,10 +573,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 updateTrackProfileUI(result.race);
                 renderPredictions(result.predictions);
-                renderRecommendations(result.recommendations);
-
-                confidenceContainer.classList.remove("d-none");
-                displayConfidence.textContent = `${result.recommendations.confidence_score}%`;
                 btnRecalculate.classList.remove("d-none");
 
                 // Refresh race selection dropdown with newly saved DB race
@@ -601,7 +590,7 @@ document.addEventListener("DOMContentLoaded", () => {
         displayRaceName.textContent = raceData.race_name;
         displayRaceMeta.textContent = `${raceData.track_name}競馬場 | ${raceData.surface_type}${raceData.distance}m | 馬場: ${raceData.track_condition} | 天候: ${raceData.weather}`;
 
-        tbodyPredictions.innerHTML = '<tr><td colspan="6" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-muted">AI 思考解析中...</div></td></tr>';
+        tbodyPredictions.innerHTML = '<tr><td colspan="4" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-muted">AI 思考解析中...</div></td></tr>';
 
         try {
             const res = await fetch("/api/predict", {
@@ -614,10 +603,6 @@ document.addEventListener("DOMContentLoaded", () => {
             if (result.status === "success") {
                 updateTrackProfileUI(raceData);
                 renderPredictions(result.predictions);
-                renderRecommendations(result.recommendations);
-
-                confidenceContainer.classList.remove("d-none");
-                displayConfidence.textContent = `${result.recommendations.confidence_score}%`;
                 btnRecalculate.classList.remove("d-none");
 
                 // Refresh race list dropdown
@@ -631,117 +616,38 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    function renderPredictions(predictions) {
+    function esc(v) {
+        return String(v).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    }
+
+    function renderPredictions(rows) {
         tbodyPredictions.innerHTML = "";
-        predictions.forEach((p, index) => {
+        rows.forEach((p, index) => {
             const tr = document.createElement("tr");
             if (index === 0) tr.classList.add("rank-1");
             else if (index === 1) tr.classList.add("rank-2");
             else if (index === 2) tr.classList.add("rank-3");
 
-            const winPercent = (p.win_probability * 100).toFixed(1);
-            const placePercent = (p.place_probability * 100).toFixed(1);
-            const evColor = p.win_ev >= 1.0 ? "bg-danger" : p.win_ev >= 0.85 ? "bg-warning text-dark" : "bg-secondary";
-
+            const pct = (p.market_probability * 100).toFixed(1);
             tr.innerHTML = `
-                <td class="text-center fw-bold fs-5">${p.horse_number}</td>
+                <td class="text-center fw-bold fs-5">${esc(p.horse_number)}</td>
                 <td>
-                    <div class="fw-bold">${p.horse_name}</div>
-                    <div class="text-muted small"><i class="fa-solid fa-user-tie me-1"></i>${p.jockey_name}</div>
+                    <div class="fw-bold">${esc(p.horse_name)}</div>
+                    <div class="text-muted small"><i class="fa-solid fa-user-tie me-1"></i>${esc(p.jockey_name)}</div>
                 </td>
-                <td class="text-center fw-bold text-primary">${p.odds} 倍</td>
-                <td>
-                    <div class="d-flex justify-content-between small mb-1">
-                        <span>勝率</span>
-                        <span class="fw-bold">${winPercent}%</span>
-                    </div>
-                    <div class="progress prob-bar">
-                        <div class="progress-bar bg-success" style="width: ${winPercent}%"></div>
-                    </div>
-                </td>
+                <td class="text-center fw-bold text-primary">${esc(p.odds)} 倍</td>
                 <td>
                     <div class="d-flex justify-content-between small mb-1">
-                        <span>複勝率</span>
-                        <span class="fw-bold">${placePercent}%</span>
+                        <span>市場確率</span>
+                        <span class="fw-bold">${pct}%</span>
                     </div>
                     <div class="progress prob-bar">
-                        <div class="progress-bar bg-info" style="width: ${placePercent}%"></div>
+                        <div class="progress-bar bg-success" style="width: ${pct}%"></div>
                     </div>
-                </td>
-                <td class="text-center">
-                    <span class="badge ${evColor} ev-badge fs-6">${p.win_ev}</span>
                 </td>
             `;
             tbodyPredictions.appendChild(tr);
         });
-    }
-
-    function renderRecommendations(recs) {
-        // Render Win Tickets
-        const winContainer = document.getElementById("container-win-tickets");
-        if (recs.win_tickets.length === 0) {
-            winContainer.innerHTML = '<div class="text-muted small p-2">推奨単勝カードなし</div>';
-        } else {
-            winContainer.innerHTML = recs.win_tickets.map(t => `
-                <div class="col-md-6">
-                    <div class="card ticket-card p-3">
-                        <div class="d-flex justify-content-between align-items-center mb-1">
-                            <span class="badge bg-danger">${t.level}</span>
-                            <span class="fw-bold text-success">期待値 ${t.ev}</span>
-                        </div>
-                        <h5 class="fw-bold mb-1">${t.horse_number}番 ${t.horse_name}</h5>
-                        <div class="small text-muted">勝率: ${t.probability}% | オッズ: ${t.odds}倍</div>
-                        <div class="mt-2 text-end text-primary fw-bold small">推奨資金配分: ${t.recommended_stake_percent}%</div>
-                    </div>
-                </div>
-            `).join("");
-        }
-
-        // Render Place Tickets
-        const placeContainer = document.getElementById("container-place-tickets");
-        placeContainer.innerHTML = recs.place_tickets.map(t => `
-            <div class="col-md-6">
-                <div class="card ticket-card p-3">
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                        <span class="badge bg-info text-dark">${t.recommendation}</span>
-                        <span class="fw-bold text-dark">複勝率 ${t.place_probability}%</span>
-                    </div>
-                    <h5 class="fw-bold mb-1">${t.horse_number}番 ${t.horse_name}</h5>
-                    <div class="small text-muted">単勝オッズ: ${t.odds}倍</div>
-                </div>
-            </div>
-        `).join("");
-
-        // Render Exacta Tickets
-        const exactaContainer = document.getElementById("container-exacta-tickets");
-        exactaContainer.innerHTML = recs.exacta_tickets.map(t => `
-            <div class="col-md-6">
-                <div class="card ticket-card p-3">
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                        <span class="badge bg-dark">馬単 (1着-2着)</span>
-                        <span class="fw-bold text-primary">想定オッズ ${t.estimated_odds}倍</span>
-                    </div>
-                    <h5 class="fw-bold mb-1">${t.combination} (${t.first_name} → ${t.second_name})</h5>
-                    <div class="small text-muted">合成確率: ${t.joint_probability}% | 期待値: ${t.ev}</div>
-                </div>
-            </div>
-        `).join("");
-
-        // Render Trio Tickets
-        const trioContainer = document.getElementById("container-trio-tickets");
-        trioContainer.innerHTML = recs.trio_tickets.map(t => `
-            <div class="col-md-6">
-                <div class="card ticket-card p-3">
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                        <span class="badge bg-warning text-dark">3連複 (1軸流し)</span>
-                        <span class="fw-bold text-success">想定オッズ ${t.estimated_odds}倍</span>
-                    </div>
-                    <h5 class="fw-bold mb-1">${t.combination}</h5>
-                    <div class="small text-muted">軸: ${t.axis_name} / 相手: ${t.partner1_name}, ${t.partner2_name}</div>
-                    <div class="small text-muted">合成確率: ${t.joint_probability}%</div>
-                </div>
-            </div>
-        `).join("");
     }
 
     // Add Custom Horse
@@ -783,22 +689,5 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         runPrediction(currentRace);
-    });
-
-    // Retrain Model
-    btnRetrain.addEventListener("click", async () => {
-        btnRetrain.disabled = true;
-        btnRetrain.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> 学習中...';
-        try {
-            const res = await fetch("/api/train", { method: "POST" });
-            const data = await res.json();
-            alert(data.message);
-            if (currentRace) runPrediction(currentRace);
-        } catch (err) {
-            alert("モデル再学習に失敗しました。");
-        } finally {
-            btnRetrain.disabled = false;
-            btnRetrain.innerHTML = '<i class="fa-solid fa-arrows-rotate me-1"></i> AIモデル再学習';
-        }
     });
 });

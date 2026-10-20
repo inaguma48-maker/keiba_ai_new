@@ -8,7 +8,7 @@ import os
 from typing import List, Optional, Dict, Any
 from src.models import RaceInfo, HorseEntry
 
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "racing_app.db")
+DB_PATH = os.environ.get("KEIBA_APP_DB") or os.path.join(os.path.dirname(os.path.dirname(__file__)), "racing_app.db")
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH)
