@@ -10,61 +10,105 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
         body {
-            background-color: #f4f6f9;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            color: #1a1a1a;
         }
         .navbar-brand {
-            font-weight: 700;
-            letter-spacing: 1px;
-        }
-        .hero-banner {
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-            color: white;
-            padding: 2.2rem 0;
-            margin-bottom: 2rem;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        }
-        .card {
-            border: none;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-            margin-bottom: 1.5rem;
-        }
-        .card-header {
-            background-color: #ffffff;
-            border-bottom: 2px solid #eef2f5;
-            font-weight: 700;
-            padding: 1rem 1.25rem;
-            border-radius: 12px 12px 0 0 !important;
-        }
-        .badge-confidence {
-            font-size: 1.1rem;
-            padding: 0.5em 0.8em;
-            border-radius: 20px;
-        }
-        .ev-badge {
-            font-weight: 600;
-            padding: 0.35em 0.6em;
-        }
-        .table-horses th {
-            background-color: #f8f9fa;
-            font-size: 0.9rem;
-            text-transform: uppercase;
+            font-weight: 800;
             letter-spacing: 0.5px;
         }
+        .hero-banner {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: white;
+            padding: 2rem 0 1.5rem 0;
+            margin-bottom: 1.5rem;
+            border-bottom: 4px solid #f59e0b;
+        }
+        .step-badge {
+            background-color: #f59e0b;
+            color: #000;
+            font-weight: 800;
+            font-size: 0.9rem;
+            padding: 0.35rem 0.75rem;
+            border-radius: 20px;
+            display: inline-block;
+            margin-right: 0.5rem;
+        }
+        .guide-flow {
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 1rem 1.25rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+            margin-bottom: 1.5rem;
+        }
+        .flow-step {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 700;
+            font-size: 0.95rem;
+            color: #475569;
+        }
+        .flow-step.active {
+            color: #2563eb;
+        }
+        .flow-arrow {
+            color: #cbd5e1;
+            font-size: 0.9rem;
+        }
+        .card-step {
+            border: None;
+            border-radius: 14px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+            margin-bottom: 1.75rem;
+            background: #ffffff;
+            overflow: hidden;
+        }
+        .card-step-header {
+            padding: 1rem 1.25rem;
+            font-weight: 800;
+            font-size: 1.15rem;
+            border-bottom: 2px solid #f1f5f9;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .header-step-1 { background: #eff6ff; color: #1e40af; }
+        .header-step-2 { background: #fefce8; color: #854d0e; }
+        .header-step-3 { background: #f0fdf4; color: #166534; }
+        .header-step-4 { background: #faf5ff; color: #6b21a8; }
+
+        .btn-auto-action {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: #ffffff;
+            font-weight: 800;
+            font-size: 1.15rem;
+            padding: 0.85rem 1.5rem;
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35);
+            transition: all 0.2s ease;
+        }
+        .btn-auto-action:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 18px rgba(245, 158, 11, 0.45);
+            color: #ffffff;
+        }
         .rank-1 {
-            background-color: #fff9db !important;
+            background-color: #fef9c3 !important;
             font-weight: bold;
         }
         .rank-2 {
-            background-color: #f1f3f5 !important;
+            background-color: #f1f5f9 !important;
         }
         .rank-3 {
-            background-color: #fff4e6 !important;
+            background-color: #ffedd5 !important;
         }
         .ticket-card {
-            border-left: 4px solid #0d6efd;
-            background-color: #f8f9fa;
+            border-left: 5px solid #2563eb;
+            background-color: #f8fafc;
+            border-radius: 8px;
             transition: transform 0.2s;
         }
         .ticket-card:hover {
@@ -74,27 +118,30 @@
             height: 10px;
             border-radius: 5px;
         }
-        .roi-badge {
-            font-size: 1.2rem;
-            font-weight: 800;
-            border-radius: 8px;
-            padding: 0.4rem 0.8rem;
-        }
         .volatility-alert {
-            border-left: 5px solid #ff9800;
-            background-color: #fff3e0;
+            border-left: 5px solid #f59e0b;
+            background-color: #fffbeb;
+            border-radius: 8px;
+        }
+        .commentary-ticker-box {
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+            color: #fde047;
+            border: 2px solid #f59e0b;
+            border-radius: 10px;
+            padding: 0.75rem 1rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
     </style>
 </head>
 <body>
 
     <!-- Header Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
         <div class="container">
-            <a class="navbar-brand" href="#"><i class="fa-solid fa-horse-head me-2 text-warning"></i>AI 競馬的中予想マスター & 自己成長システム</a>
+            <a class="navbar-brand text-warning" href="#"><i class="fa-solid fa-horse-head me-2"></i>高精度 AI競馬予想マスター</a>
             <div class="d-flex align-items-center gap-2 ms-auto">
-                <span class="badge bg-success text-white small px-2 py-1" id="nav-gen-badge">AI世代: Gen 1</span>
-                <button class="btn btn-outline-warning btn-sm" id="btn-retrain">
+                <span class="badge bg-success text-white px-2 py-1" id="nav-gen-badge">AI世代: Gen 1</span>
+                <button class="btn btn-outline-warning btn-sm fw-bold" id="btn-retrain">
                     <i class="fa-solid fa-arrows-rotate me-1"></i> 自己学習リトライ
                 </button>
             </div>
@@ -104,16 +151,35 @@
     <!-- Hero Banner -->
     <div class="hero-banner text-center">
         <div class="container">
-            <h1 class="display-5 fw-bold"><i class="fa-solid fa-chart-line me-2"></i>機械学習・荒れ度分析・自己成長AI予想</h1>
-            <p class="lead mb-0">LightGBM / RandomForest + 回収率100%超自己学習ループ・波乱判定(荒れ度)分析エンジン</p>
+            <h1 class="fw-extrabold fs-2 mb-1"><i class="fa-solid fa-wand-magic-sparkles me-2 text-warning"></i>簡単 4ステップ AI競馬予想 ＆ ウマ娘風熱血中継</h1>
+            <p class="lead text-light mb-0 fs-6">JRA最新オッズ自動分析 ・ 荒れ度(波乱)判定 ・ Kelly基準100%超回収率買い目 ・ 2Dリアル中継</p>
         </div>
     </div>
 
-    <!-- Main Content -->
+    <!-- Main Guided Content Container -->
     <div class="container">
 
-        <!-- Self-Growing Performance Dashboard -->
-        <div class="card bg-dark text-white shadow-lg mb-4">
+        <!-- Guided Workflow Step Indicator Bar -->
+        <div class="guide-flow d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div class="flow-step active">
+                <span class="badge bg-primary rounded-circle px-2 py-1">1</span> 1. レース選択 / JRA自動取得
+            </div>
+            <i class="fa-solid fa-chevron-right flow-arrow"></i>
+            <div class="flow-step">
+                <span class="badge bg-warning text-dark rounded-circle px-2 py-1">2</span> 2. AI予想 ＆ 荒れ度確認
+            </div>
+            <i class="fa-solid fa-chevron-right flow-arrow"></i>
+            <div class="flow-step">
+                <span class="badge bg-success rounded-circle px-2 py-1">3</span> 3. 高回収率 推奨買い目
+            </div>
+            <i class="fa-solid fa-chevron-right flow-arrow"></i>
+            <div class="flow-step">
+                <span class="badge bg-purple rounded-circle bg-dark text-white px-2 py-1">4</span> 4. ウマ娘風 ライブ中継
+            </div>
+        </div>
+
+        <!-- AI Performance & Self-Learning Statistics Dashboard -->
+        <div class="card bg-dark text-white shadow mb-4">
             <div class="card-body p-3">
                 <div class="row align-items-center text-center text-md-start">
                     <div class="col-md-3 border-end border-secondary mb-3 mb-md-0">
@@ -142,262 +208,249 @@
             </div>
         </div>
 
-        <div class="row">
-
-            <!-- Left Column: Race Selector & JRA Import & Input Form -->
-            <div class="col-lg-4">
-
-                <!-- JRA Racecard Import Section -->
-                <div class="card border-primary">
-                    <div class="card-header bg-primary text-white">
-                        <i class="fa-solid fa-cloud-arrow-down me-2"></i>JRA 出馬表 & オッズ 自動検出
-                    </div>
-                    <div class="card-body">
-                        <!-- Automatic One-Click JRA Auto Detection Button -->
-                        <button id="btn-auto-detect-jra" class="btn btn-warning btn-lg w-100 fw-bold text-dark mb-3 shadow-sm">
-                            <i class="fa-solid fa-wand-magic-sparkles me-1"></i> 1タップでJRA最新レース・オッズ自動取得 & AI予想
-                        </button>
-                        <hr class="my-2">
-                        <form id="form-import-jra">
-                            <div class="mb-2">
-                                <label class="form-label small fw-bold text-muted">指定URLから直接取得 (任意)</label>
-                                <input type="url" id="input-jra-url" class="form-control form-control-sm" placeholder="https://www.jra.go.jp/...">
-                            </div>
-                            <div class="text-center my-1 text-muted small">- または テキスト貼り付け -</div>
-                            <div class="mb-2">
-                                <textarea id="input-jra-text" class="form-control form-control-sm" rows="2" placeholder="出馬表・オッズテキスト"></textarea>
-                            </div>
-                            <button type="submit" class="btn btn-outline-primary btn-sm w-100 fw-bold">
-                                <i class="fa-solid fa-download me-1"></i> 手動入力・URL指定で予想
-                            </button>
-                        </form>
-                    </div>
+        <!-- STEP 1: Select or Auto-Fetch Race -->
+        <div class="card card-step">
+            <div class="card-step-header header-step-1">
+                <div>
+                    <span class="step-badge">ステップ 1</span>
+                    <i class="fa-solid fa-flag-checkered me-2"></i>予想したいレースを選んでください
                 </div>
-
-                <!-- Sample Race Selection -->
-                <div class="card">
-                    <div class="card-header text-primary">
-                        <i class="fa-solid fa-trophy me-2"></i>サンプルG1レース選択
-                    </div>
-                    <div class="card-body">
-                        <div class="mb-3">
-                            <label class="form-label text-muted fw-bold">登録レース一覧</label>
-                            <select id="select-race" class="form-select">
-                                <option value="">-- レースを選択してください --</option>
-                            </select>
-                        </div>
-                        <button id="btn-load-race" class="btn btn-primary w-100 fw-bold">
-                            <i class="fa-solid fa-magnifying-glass me-1"></i> レース読込 & AI予想実行
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Custom Horse Add Form -->
-                <div class="card">
-                    <div class="card-header text-success">
-                        <i class="fa-solid fa-plus-circle me-2"></i>出走馬データ手動追加・調整
-                    </div>
-                    <div class="card-body">
-                        <form id="form-add-horse">
-                            <div class="row g-2 mb-2">
-                                <div class="col-4">
-                                    <label class="form-label small">馬番</label>
-                                    <input type="number" id="input-num" class="form-control form-control-sm" min="1" max="18" value="9" required>
-                                </div>
-                                <div class="col-8">
-                                    <label class="form-label small">馬名</label>
-                                    <input type="text" id="input-name" class="form-control form-control-sm" value="カスタムスター" required>
-                                </div>
-                            </div>
-                            <div class="row g-2 mb-2">
-                                <div class="col-6">
-                                    <label class="form-label small">騎手</label>
-                                    <input type="text" id="input-jockey" class="form-control form-control-sm" value="ルメール">
-                                </div>
-                                <div class="col-6">
-                                    <label class="form-label small">単勝オッズ</label>
-                                    <input type="number" step="0.1" id="input-odds" class="form-control form-control-sm" value="4.5" required>
-                                </div>
-                            </div>
-                            <div class="row g-2 mb-3">
-                                <div class="col-6">
-                                    <label class="form-label small">過去スピード指数 (50-110)</label>
-                                    <input type="number" id="input-speed" class="form-control form-control-sm" value="92.0" required>
-                                </div>
-                                <div class="col-6">
-                                    <label class="form-label small">騎手勝率 (0.0-1.0)</label>
-                                    <input type="number" step="0.01" id="input-jockey-win" class="form-control form-control-sm" value="0.25" required>
-                                </div>
-                            </div>
-                            <button type="submit" class="btn btn-outline-success btn-sm w-100 fw-bold">
-                                <i class="fa-solid fa-plus me-1"></i> この馬を出走表に追加
-                            </button>
-                        </form>
-                    </div>
-                </div>
-
+                <span class="badge bg-primary">操作手順 1/4</span>
             </div>
-
-            <!-- Right Column: Predictions & Recommended Tickets -->
-            <div class="col-lg-8">
-
-                <!-- Race Info & Volatility Header -->
-                <div class="card">
-                    <div class="card-body">
-                        <div class="d-flex align-items-center justify-content-between flex-wrap">
-                            <div>
-                                <h3 id="display-race-name" class="mb-1 text-dark fw-bold">レースが選択されていません</h3>
-                                <p id="display-race-meta" class="text-muted mb-0 small">左メニューよりレースを選択してください。</p>
-                            </div>
-                            <div id="confidence-container" class="mt-2 mt-md-0 d-none text-end">
-                                <span class="text-muted small d-block mb-1">AI 予想信頼度</span>
-                                <span id="display-confidence" class="badge bg-danger badge-confidence">85%</span>
-                            </div>
+            <div class="card-body p-4">
+                <div class="row g-4 align-items-center">
+                    <div class="col-lg-7 text-center text-lg-start">
+                        <div class="alert alert-primary mb-3">
+                            <i class="fa-solid fa-lightbulb me-2"></i><strong>【一番簡単】</strong> 「1タップでJRA最新レース自動取得」を押すと、今日の最新レース情報とオッズを取り込んで即座にAI予想を開始します。
                         </div>
-
-                        <!-- Race Volatility & Upset Alert Bar -->
-                        <div id="volatility-card" class="card mt-3 mb-0 volatility-alert border-0 d-none">
-                            <div class="card-body p-2 d-flex align-items-center gap-3">
-                                <span class="badge bg-warning text-dark fs-6 px-3 py-2 fw-bold" id="badge-volatility-level"><i class="fa-solid fa-bolt me-1"></i>荒れ度: 波乱含み</span>
-                                <div class="small flex-grow-1">
-                                    <strong id="volatility-score-text">荒れ度スコア: 65/100</strong> — <span id="volatility-desc-text">1番人気と後続の能力差が小さく、高回収率(EV>1.0)が狙えるターゲットレース</span>
-                                </div>
+                        <button id="btn-auto-detect-jra" class="btn btn-auto-action w-100 py-3 mb-2">
+                            <i class="fa-solid fa-wand-magic-sparkles me-2"></i> 1タップでJRA最新レース・オッズ自動取得 ＆ AI予想実行
+                        </button>
+                    </div>
+                    <div class="col-lg-5">
+                        <div class="bg-light p-3 rounded border">
+                            <label class="form-label fw-bold text-dark mb-1"><i class="fa-solid fa-trophy me-1 text-primary"></i>サンプルG1・保存レースから選択</label>
+                            <div class="input-group">
+                                <select id="select-race" class="form-select">
+                                    <option value="">-- レースを選択してください --</option>
+                                </select>
+                                <button id="btn-load-race" class="btn btn-primary fw-bold">
+                                    <i class="fa-solid fa-magnifying-glass me-1"></i> 読込
+                                </button>
                             </div>
+                            <hr class="my-3">
+                            <a class="small text-decoration-none text-muted" data-bs-toggle="collapse" href="#collapseManualImport" role="button">
+                                <i class="fa-solid fa-sliders me-1"></i> URL指定・テキスト貼り付け・カスタム出走馬追加はこちら
+                            </a>
                         </div>
                     </div>
                 </div>
 
-                <!-- Live 2D Track Canvas & Visual Simulation Section -->
-                <div class="card shadow-sm border-0 mb-4">
-                    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
-                        <span class="fw-bold"><i class="fa-solid fa-tv me-2 text-warning"></i>リアル競馬中継 Live シミュレーション & AIレース中継</span>
-                        <div class="d-flex align-items-center gap-2">
-                            <select id="select-cam-mode" class="form-select form-select-sm bg-dark text-white border-secondary" style="width: auto;">
-                                <option value="overview">🎥 全景俯瞰カメラ</option>
-                                <option value="lead">🏇 先頭馬追従カメラ</option>
-                                <option value="finish">🏁 決勝線ゴールカメラ</option>
-                            </select>
-                            <div class="btn-group btn-group-sm" role="group">
-                                <button id="btn-start-sim" class="btn btn-warning fw-bold text-dark" disabled>
-                                    <i class="fa-solid fa-play me-1"></i> 実況中継スタート
-                                </button>
-                                <button id="btn-reset-sim" class="btn btn-outline-light btn-sm" disabled>
-                                    <i class="fa-solid fa-rotate-left me-1"></i> リセット
-                                </button>
+                <!-- Collapsible Manual Import Form -->
+                <div class="collapse mt-3" id="collapseManualImport">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="card card-body bg-light border-0">
+                                <h6 class="fw-bold"><i class="fa-solid fa-link me-1"></i>JRA 出馬表URL / テキスト手動指定</h6>
+                                <form id="form-import-jra">
+                                    <input type="url" id="input-jra-url" class="form-control form-control-sm mb-2" placeholder="https://www.jra.go.jp/...">
+                                    <textarea id="input-jra-text" class="form-control form-control-sm mb-2" rows="2" placeholder="出馬表テキスト"></textarea>
+                                    <button type="submit" class="btn btn-outline-primary btn-sm w-100 fw-bold">手動取り込み予想</button>
+                                </form>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card card-body bg-light border-0">
+                                <h6 class="fw-bold"><i class="fa-solid fa-plus-circle me-1"></i>出走馬データ追加・調整</h6>
+                                <form id="form-add-horse">
+                                    <div class="row g-2 mb-2">
+                                        <div class="col-4"><input type="number" id="input-num" class="form-control form-control-sm" min="1" value="9" required></div>
+                                        <div class="col-8"><input type="text" id="input-name" class="form-control form-control-sm" value="カスタムスター" required></div>
+                                    </div>
+                                    <div class="row g-2 mb-2">
+                                        <div class="col-6"><input type="text" id="input-jockey" class="form-control form-control-sm" value="ルメール"></div>
+                                        <div class="col-6"><input type="number" step="0.1" id="input-odds" class="form-control form-control-sm" value="4.5" required></div>
+                                    </div>
+                                    <div class="row g-2 mb-2">
+                                        <div class="col-6"><input type="number" id="input-speed" class="form-control form-control-sm" value="92.0" required></div>
+                                        <div class="col-6"><input type="number" step="0.01" id="input-jockey-win" class="form-control form-control-sm" value="0.25" required></div>
+                                    </div>
+                                    <button type="submit" class="btn btn-outline-success btn-sm w-100 fw-bold">この馬を追加</button>
+                                </form>
                             </div>
                         </div>
                     </div>
-                    <div class="card-body p-3 bg-light">
-                        <!-- Track Profile Badges -->
-                        <div id="track-profile-badges" class="d-flex flex-wrap gap-2 mb-2 small align-items-center">
-                            <span class="badge bg-secondary" id="badge-track-dir">回り: -</span>
-                            <span class="badge bg-secondary" id="badge-track-shape">コース形状: -</span>
-                            <span class="badge bg-secondary" id="badge-track-stretch">直線長さ: -</span>
-                            <span class="badge bg-secondary" id="badge-track-slope">坂・高低差: -</span>
-                            <span class="badge bg-danger ms-auto d-none" id="badge-live-tv"><i class="fa-solid fa-circle me-1 animate-pulse"></i>LIVE 中継中</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- STEP 2: AI Race Analysis & Predictions Table -->
+        <div class="card card-step">
+            <div class="card-step-header header-step-2">
+                <div>
+                    <span class="step-badge">ステップ 2</span>
+                    <i class="fa-solid fa-chart-pie me-2"></i>AI 予想結果 ＆ 荒れ度(波乱)分析
+                </div>
+                <span class="badge bg-warning text-dark">操作手順 2/4</span>
+            </div>
+            <div class="card-body p-4">
+
+                <!-- Race Header Info Bar -->
+                <div class="d-flex align-items-center justify-content-between flex-wrap bg-light p-3 rounded mb-3 border">
+                    <div>
+                        <h3 id="display-race-name" class="mb-1 text-dark fw-bold fs-4">レースが選択されていません</h3>
+                        <p id="display-race-meta" class="text-muted mb-0 small">上の「ステップ 1」からレースを選択または1タップ自動取得を実行してください。</p>
+                    </div>
+                    <div id="confidence-container" class="mt-2 mt-md-0 d-none text-end">
+                        <span class="text-muted small d-block mb-1 fw-bold">AI 予想信頼度</span>
+                        <span id="display-confidence" class="badge bg-danger fs-5 px-3 py-2">85%</span>
+                    </div>
+                </div>
+
+                <!-- Volatility Warning Bar -->
+                <div id="volatility-card" class="card volatility-alert border-0 mb-3 d-none">
+                    <div class="card-body p-3 d-flex align-items-center gap-3">
+                        <span class="badge bg-warning text-dark fs-6 px-3 py-2 fw-bold" id="badge-volatility-level"><i class="fa-solid fa-bolt me-1"></i>荒れ度: 波乱含み</span>
+                        <div class="small flex-grow-1">
+                            <strong id="volatility-score-text">荒れ度スコア: 65/100</strong> — <span id="volatility-desc-text">人気馬と後続の差が小さく、穴馬での高回収率(EV>1.0)が狙えるターゲットレース</span>
                         </div>
-                        <div class="position-relative text-center bg-dark rounded border border-secondary shadow-lg p-2 overflow-hidden">
-                            <canvas id="raceCanvas" width="760" height="380" style="max-width: 100%; height: auto; border-radius: 8px; background-color: #1b262c;"></canvas>
-                            <div id="sim-status-overlay" class="position-absolute top-50 start-50 translate-middle text-white fw-bold small bg-dark bg-opacity-75 p-2 rounded d-none">
-                                レースシミュレーション停止中
-                            </div>
-                        </div>
-                        <!-- Live TV Broadcast Commentary Ticker (Uma Musume Style Live Commentary Bar) -->
-                        <div class="alert mb-0 mt-2 p-2 d-flex align-items-center gap-2 border border-warning shadow" style="background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); color: #fde047; border-width: 2px !important;">
-                            <span class="badge bg-warning text-dark fw-bold px-2 py-1" style="font-size: 0.85rem;"><i class="fa-solid fa-bullhorn me-1"></i>ウマ娘風熱血実況</span>
-                            <div id="broadcast-commentary-text" class="fw-bold flex-grow-1 text-truncate" style="letter-spacing: 0.5px; font-size: 0.92rem; text-shadow: 0 0 8px rgba(253, 224, 71, 0.3);">
-                                出走準備完了！「実況中継スタート」を押すとウマ娘風熱血AIライブ実況が始まります！
-                            </div>
-                            <span id="sim-live-time" class="badge bg-danger fw-bold fs-6 px-3 py-1 shadow-sm">0.0秒</span>
-                        </div>
+                        <button id="btn-recalculate" class="btn btn-sm btn-dark fw-bold ms-auto d-none">
+                            <i class="fa-solid fa-calculator me-1"></i> 再計算
+                        </button>
                     </div>
                 </div>
 
                 <!-- Predictions Table -->
-                <div class="card">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <span><i class="fa-solid fa-ranking-star me-2 text-warning"></i>AI 予想分析結果 (勝率・複勝率・期待値・穴馬評価)</span>
-                        <button id="btn-recalculate" class="btn btn-sm btn-dark d-none">
-                            <i class="fa-solid fa-calculator me-1"></i> 再計算
-                        </button>
-                    </div>
-                    <div class="card-body p-0 table-responsive">
-                        <table class="table table-hover align-middle mb-0 table-horses">
-                            <thead>
-                                <tr>
-                                    <th class="text-center" style="width: 8%;">馬番</th>
-                                    <th style="width: 24%;">馬名 / 騎手</th>
-                                    <th class="text-center" style="width: 10%;">オッズ</th>
-                                    <th style="width: 22%;">勝率 (Win Prob)</th>
-                                    <th style="width: 18%;">複勝率 (Place Prob)</th>
-                                    <th class="text-center" style="width: 18%;">期待値 (EV) / 評価</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tbody-predictions">
-                                <tr>
-                                    <td colspan="6" class="text-center text-muted py-4">レースを読み込むと AI 予測結果が表示されます。</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- Recommended Tickets Section -->
-                <div class="card">
-                    <div class="card-header text-dark d-flex justify-content-between align-items-center">
-                        <span><i class="fa-solid fa-ticket me-2 text-success"></i>AI 推奨買い目カード (Kelly Criterion & 高回収率100%超最適化)</span>
-                    </div>
-                    <div class="card-body">
-
-                        <!-- Tabs for Ticket Types -->
-                        <ul class="nav nav-pills mb-3" id="ticket-tab" role="tablist">
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link active fw-bold" id="tab-win" data-bs-toggle="pill" data-bs-target="#content-win" type="button">単勝 (Win)</button>
-                            </li>
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link fw-bold" id="tab-place" data-bs-toggle="pill" data-bs-target="#content-place" type="button">複勝 (Place)</button>
-                            </li>
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link fw-bold" id="tab-exacta" data-bs-toggle="pill" data-bs-target="#content-exacta" type="button">馬単 (Exacta)</button>
-                            </li>
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link fw-bold" id="tab-trio" data-bs-toggle="pill" data-bs-target="#content-trio" type="button">3連複 (Trio)</button>
-                            </li>
-                        </ul>
-
-                        <!-- Tab Contents -->
-                        <div class="tab-content" id="ticket-tab-content">
-                            <!-- Win -->
-                            <div class="tab-pane fade show active" id="content-win">
-                                <div id="container-win-tickets" class="row g-2">
-                                    <div class="text-muted small">推奨買い目がここに表示されます。</div>
-                                </div>
-                            </div>
-                            <!-- Place -->
-                            <div class="tab-pane fade" id="content-place">
-                                <div id="container-place-tickets" class="row g-2">
-                                    <div class="text-muted small">推奨買い目がここに表示されます。</div>
-                                </div>
-                            </div>
-                            <!-- Exacta -->
-                            <div class="tab-pane fade" id="content-exacta">
-                                <div id="container-exacta-tickets" class="row g-2">
-                                    <div class="text-muted small">推奨買い目がここに表示されます。</div>
-                                </div>
-                            </div>
-                            <!-- Trio -->
-                            <div class="tab-pane fade" id="content-trio">
-                                <div id="container-trio-tickets" class="row g-2">
-                                    <div class="text-muted small">推奨買い目がここに表示されます。</div>
-                                </div>
-                            </div>
-                        </div>
-
-                    </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-dark">
+                            <tr>
+                                <th class="text-center" style="width: 8%;">馬番</th>
+                                <th style="width: 25%;">馬名 / 騎手</th>
+                                <th class="text-center" style="width: 12%;">単勝オッズ</th>
+                                <th style="width: 20%;">勝率 (Win Prob)</th>
+                                <th style="width: 20%;">複勝率 (Place Prob)</th>
+                                <th class="text-center" style="width: 15%;">期待値 (EV) / 評価</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-predictions">
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-4">
+                                    <i class="fa-solid fa-circle-info me-1"></i> ステップ 1 でレースを選択すると AI 予想結果が表示されます。
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
 
             </div>
         </div>
+
+        <!-- STEP 3: Betting Tickets & Stake Allocation -->
+        <div class="card card-step">
+            <div class="card-step-header header-step-3">
+                <div>
+                    <span class="step-badge bg-success text-white">ステップ 3</span>
+                    <i class="fa-solid fa-ticket me-2"></i>高回収率(100%超目標) 推奨買い目カード (Kelly基準)
+                </div>
+                <span class="badge bg-success">操作手順 3/4</span>
+            </div>
+            <div class="card-body p-4">
+                <div class="alert alert-success mb-3">
+                    <i class="fa-solid fa-circle-check me-2"></i>AIが勝率とオッズの歪み(期待値 EV > 1.0)を検知し、ケリー基準で資金配分率を最適化した推奨買い目です。
+                </div>
+
+                <!-- Tabs for Ticket Types -->
+                <ul class="nav nav-pills mb-3" id="ticket-tab" role="tablist">
+                    <li class="nav-item">
+                        <button class="nav-link active fw-bold" id="tab-win" data-bs-toggle="pill" data-bs-target="#content-win" type="button">単勝 (Win)</button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link fw-bold" id="tab-place" data-bs-toggle="pill" data-bs-target="#content-place" type="button">複勝 (Place)</button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link fw-bold" id="tab-exacta" data-bs-toggle="pill" data-bs-target="#content-exacta" type="button">馬単 (Exacta)</button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link fw-bold" id="tab-trio" data-bs-toggle="pill" data-bs-target="#content-trio" type="button">3連複 (Trio)</button>
+                    </li>
+                </ul>
+
+                <!-- Tab Contents -->
+                <div class="tab-content" id="ticket-tab-content">
+                    <div class="tab-pane fade show active" id="content-win">
+                        <div id="container-win-tickets" class="row g-2"><div class="text-muted small">推奨買い目がここに表示されます。</div></div>
+                    </div>
+                    <div class="tab-pane fade" id="content-place">
+                        <div id="container-place-tickets" class="row g-2"><div class="text-muted small">推奨買い目がここに表示されます。</div></div>
+                    </div>
+                    <div class="tab-pane fade" id="content-exacta">
+                        <div id="container-exacta-tickets" class="row g-2"><div class="text-muted small">推奨買い目がここに表示されます。</div></div>
+                    </div>
+                    <div class="tab-pane fade" id="content-trio">
+                        <div id="container-trio-tickets" class="row g-2"><div class="text-muted small">推奨買い目がここに表示されます。</div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- STEP 4: Live 2D Simulation & Uma Musume Commentary -->
+        <div class="card card-step">
+            <div class="card-step-header header-step-4">
+                <div>
+                    <span class="step-badge bg-purple bg-dark text-white">ステップ 4</span>
+                    <i class="fa-solid fa-tv me-2 text-warning"></i>リアル競馬中継 Live シミュレーション ＆ ウマ娘風熱血実況
+                </div>
+                <span class="badge bg-dark">操作手順 4/4</span>
+            </div>
+            <div class="card-body p-4 bg-light">
+
+                <!-- Track Profile Badges -->
+                <div id="track-profile-badges" class="d-flex flex-wrap gap-2 mb-3 small align-items-center">
+                    <span class="badge bg-secondary" id="badge-track-dir">回り: -</span>
+                    <span class="badge bg-secondary" id="badge-track-shape">コース形状: -</span>
+                    <span class="badge bg-secondary" id="badge-track-stretch">直線長さ: -</span>
+                    <span class="badge bg-secondary" id="badge-track-slope">坂・高低差: -</span>
+                    <span class="badge bg-danger ms-auto d-none" id="badge-live-tv"><i class="fa-solid fa-circle me-1 animate-pulse"></i>LIVE 中継中</span>
+                </div>
+
+                <!-- Simulation Controls & Camera Select -->
+                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                    <button id="btn-start-sim" class="btn btn-warning btn-lg fw-bold text-dark px-4 shadow-sm" disabled>
+                        <i class="fa-solid fa-play me-2"></i> 実況中継スタート (ウマ娘風)
+                    </button>
+                    <div class="d-flex align-items-center gap-2">
+                        <select id="select-cam-mode" class="form-select form-select-sm bg-dark text-white border-secondary" style="width: auto;">
+                            <option value="overview">🎥 全景俯瞰カメラ</option>
+                            <option value="lead">🏇 先頭馬追従カメラ</option>
+                            <option value="finish">🏁 決勝線ゴールカメラ</option>
+                        </select>
+                        <button id="btn-reset-sim" class="btn btn-outline-dark btn-sm fw-bold" disabled>
+                            <i class="fa-solid fa-rotate-left me-1"></i> リセット
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Canvas -->
+                <div class="position-relative text-center bg-dark rounded border border-secondary shadow-lg p-2 overflow-hidden mb-3">
+                    <canvas id="raceCanvas" width="760" height="380" style="max-width: 100%; height: auto; border-radius: 8px; background-color: #1b262c;"></canvas>
+                    <div id="sim-status-overlay" class="position-absolute top-50 start-50 translate-middle text-white fw-bold small bg-dark bg-opacity-75 p-2 rounded d-none">
+                        レースシミュレーション停止中
+                    </div>
+                </div>
+
+                <!-- Live TV Broadcast Commentary Ticker (Uma Musume Style) -->
+                <div class="commentary-ticker-box d-flex align-items-center gap-2">
+                    <span class="badge bg-warning text-dark fw-bold px-2 py-1" style="font-size: 0.85rem;"><i class="fa-solid fa-bullhorn me-1"></i>ウマ娘風熱血実況</span>
+                    <div id="broadcast-commentary-text" class="fw-bold flex-grow-1 text-truncate" style="letter-spacing: 0.5px; font-size: 0.95rem; text-shadow: 0 0 8px rgba(253, 224, 71, 0.3);">
+                        出走準備完了！「実況中継スタート」を押すとウマ娘風熱血AIライブ実況が始まります！
+                    </div>
+                    <span id="sim-live-time" class="badge bg-danger fw-bold fs-6 px-3 py-1 shadow-sm">0.0秒</span>
+                </div>
+
+            </div>
+        </div>
+
     </div>
 
     <!-- Modal for Result Feedback Entry -->
@@ -405,7 +458,7 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header bg-dark text-white">
-                    <h5 class="modal-title fw-bold"><i class="fa-solid fa-trophy text-warning me-2"></i>レース結果入力 & AI自己成長フィードバック</h5>
+                    <h5 class="modal-title fw-bold"><i class="fa-solid fa-trophy text-warning me-2"></i>レース結果入力 ＆ AI自己成長フィードバック</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
