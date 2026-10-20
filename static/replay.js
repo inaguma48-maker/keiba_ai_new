@@ -256,7 +256,7 @@
             c.fillStyle = "#fff"; c.font = `bold ${Math.round(13 * DIM.k)}px sans-serif`; c.textAlign = "center"; c.fillText("SIMULATION（架空）", W / 2, 8 + 18 * DIM.k);
         }
         if (!s.hasReplay && s.msg) {
-            const k2 = DIM.k, lines = [], text = "リプレイできません: " + s.msg;
+            const k2 = DIM.k, lines = [], text = "実際の結果の再生はできません: " + s.msg + (CUR && CUR.race.horses && CUR.race.horses.length >= 2 ? " ※「シミュレーション」は使えます。" : "");
             for (let i = 0; i < text.length; i += 26) lines.push(text.slice(i, i + 26));
             const bh = lines.length * 20 * k2 + 14, bw = Math.min(W - 24, 26 * 15 * k2 + 24);
             c.fillStyle = "rgba(120,20,20,0.88)"; c.fillRect((W - bw) / 2, H * 0.12, bw, bh);
@@ -415,7 +415,7 @@
         S.speed = parseFloat(($("select-replay-speed") || { value: "2" }).value);
         setNote(has ? `${replay.notes[0]}${course.note ? " " + course.note : ""}` : `${msg} （コースの形と出走馬のみ表示します）${course.note ? " " + course.note : ""}`, !has);
         const b = $("btn-start-sim"), r2 = $("btn-reset-sim"); if (b) b.disabled = !has; if (r2) r2.disabled = !has;
-        const say = $("broadcast-commentary-text"); if (say) say.textContent = has ? "再生ボタンでレースが始まります。" : `リプレイできません: ${msg}`;
+        const say = $("broadcast-commentary-text"); if (say) say.textContent = has ? "再生ボタンでレースが始まります。" : `実際の結果の再生はできません: ${msg}（シミュレーションは使えます）`;
         step(0, true); S.camD = (S.order[0].d); draw(); setButton();
         raf = requestAnimationFrame(frame);
     }

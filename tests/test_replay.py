@@ -147,3 +147,18 @@ def test_typical_times_use_past_winners(keiba_db):
     import app as app_module
     r = app_module.app.test_client().get("/api/baseline", query_string={"venue": venue, "surface": surf, "distance": dist}).get_json()
     assert r["status"] == "success" and r["baseline"]["n"] >= 5
+
+
+def test_older_saved_race_ids_are_resolved_too(keiba_db):
+    con = sqlite3.connect(keiba_db)
+    rid, date, venue, number = con.execute(
+        "select race_id, race_date, venue, race_number from races where surface in ('turf','dirt') and category not like '%障害%' limit 1").fetchone()
+    con.close()
+    from src.jra_site import VENUE_CODES
+    code = {v: k for k, v in VENUE_CODES.items()}[venue]
+    legacy = f"{date.replace('-', '')}{code}{number:02d}"                       # e.g. 202610180811
+    assert len(legacy) == 12 and load_replay(str(keiba_db), legacy)["race"]["race_id"] == rid
+    with pytest.raises(ReplayError, match="まだありません"):
+        load_replay(str(keiba_db), "2099010108" + "01")
+    with pytest.raises(ReplayError, match="ありません"):
+        load_replay(str(keiba_db), "R2026_01")                                   # sample race: nothing to match

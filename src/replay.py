@@ -37,9 +37,14 @@ def resolve_race(con, race_id: str):
     race = con.execute(f"select {RACE_COLS} from races where race_id=?", (race_id,)).fetchone()
     if race:
         return race_id, race
-    m = re.fullmatch(r"10(\d{2})\d{4}\d{2}\d{2}(\d{2})(\d{4})(\d{2})(\d{2})", race_id)
+    where = None
+    m = re.fullmatch(r"10(\d{2})\d{4}\d{2}\d{2}(\d{2})(\d{4})(\d{2})(\d{2})", race_id)          # keiba.db style (22 digits)
     if m and m.group(1) in VENUE_CODES:
         where = (f"{m.group(3)}-{m.group(4)}-{m.group(5)}", VENUE_CODES[m.group(1)], int(m.group(2)))
+    m = re.fullmatch(r"(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})", race_id)                          # older saved ids: YYYYMMDD + venue + race
+    if where is None and m and m.group(4) in VENUE_CODES:
+        where = (f"{m.group(1)}-{m.group(2)}-{m.group(3)}", VENUE_CODES[m.group(4)], int(m.group(5)))
+    if where:
         found = con.execute(f"select race_id, {RACE_COLS} from races where race_date=? and venue=? and race_number=?", where).fetchone()
         if found:
             return found[0], found[1:]
