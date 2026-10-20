@@ -39,7 +39,7 @@ def test_parse_racecards():
 
 def test_card_to_race_info_excludes_scratched():
     race = card_to_race_info(parse_racecards(_read("jra_racecards.html"))[0])
-    assert race.race_id == "202610170511"
+    assert race.race_id == "1005202604061120261017"
     assert [h.horse_number for h in race.horses] == [1, 2]
     assert race.track_name == "東京" and race.distance == 1600
 
@@ -61,3 +61,15 @@ def test_cname_from_url():
     for bad in ("https://example.com/JRADB/accessD.html?CNAME=x", "https://www.jra.go.jp/JRADB/accessD.html"):
         with pytest.raises(JraSiteError):
             cname_from_url(bad)
+
+
+def test_course_variant_is_read_from_the_racecard():
+    html = _read("jra_racecards.html")
+    assert parse_racecards(html)[0].variant == ""
+    assert parse_racecards(html.replace("（芝・左）", "（芝・右 外）"))[0].variant == "外"
+    assert parse_racecards(html.replace("（芝・左）", "（芝・直）"))[0].variant == "直"
+    kyoto = html.replace("4回東京6日", "4回京都6日").replace("（芝・左）", "（芝・右）")
+    assert card_to_race_info(parse_racecards(kyoto)[0]).course_variant == "内"      # unmarked = inner loop
+    kyoto_outer = html.replace("4回東京6日", "4回京都6日").replace("（芝・左）", "（芝・右 外）")
+    assert card_to_race_info(parse_racecards(kyoto_outer)[0]).course_variant == "外"
+    assert card_to_race_info(parse_racecards(html)[0]).course_variant == ""          # Tokyo has a single loop

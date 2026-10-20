@@ -20,6 +20,7 @@ from typing import Dict, List, Optional
 
 from bs4 import BeautifulSoup
 
+from src.course_specs import COURSES
 from src.models import HorseEntry, RaceInfo
 
 BASE_URL = "https://www.jra.go.jp"
@@ -92,6 +93,7 @@ class RaceCard:
     distance: int
     surface: str         # 芝 / ダート / 障害
     direction: str       # 左 / 右 / ""
+    variant: str         # 外 / 直 / "" (JRA marks only outer and straight; no mark = inner or the only loop)
     post_time: Optional[str]
     runners: List[RunnerRow] = field(default_factory=list)
 
@@ -235,6 +237,8 @@ def parse_racecards(html: str) -> List[RaceCard]:
         if not surface:
             raise JraSiteError(f"コース種別を解釈できません: {detail}")
         dir_m = re.search(r"[・、]\s*(左|右)", detail)
+        tokens = re.split(r"[・\s]+", detail.strip("（） "))
+        variant = "直" if "直" in tokens else "外" if "外" in tokens else ""
 
         name_el = header.select_one(".race_name")
         grade_img = name_el.select_one(".grade_icon img") if name_el else None
@@ -258,6 +262,7 @@ def parse_racecards(html: str) -> List[RaceCard]:
             distance=dist,
             surface=surface,
             direction=dir_m.group(1) if dir_m else "",
+            variant=variant,
             post_time=f"{int(time_m.group(1)):02d}:{time_m.group(2)}" if time_m else None,
             runners=runners,
         ))
@@ -290,8 +295,10 @@ def card_to_race_info(card: RaceCard) -> RaceInfo:
             track_aptitude=PLACEHOLDER_FEATURES["track_aptitude"],
             odds=r.odds,
         ))
+    inner_outer = "内" in COURSES.get(card.venue, {}).get("turf", {})
+    variant = card.variant or ("内" if inner_outer and card.surface == "芝" else "")
     return RaceInfo(
-        race_id=card.race_key,
+        race_id=card.db_race_id,
         race_name=f"{card.venue}{card.race_number}R {name}",
         track_name=card.venue,
         surface_type=card.surface,
@@ -299,6 +306,7 @@ def card_to_race_info(card: RaceCard) -> RaceInfo:
         track_condition="不明",
         weather="不明",
         horses=horses,
+        course_variant=variant,
     )
 
 

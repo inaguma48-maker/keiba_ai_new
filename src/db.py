@@ -53,6 +53,10 @@ def init_db():
         );
     """)
 
+    cols = [r["name"] for r in cursor.execute("PRAGMA table_info(races)")]
+    if "course_variant" not in cols:
+        cursor.execute("ALTER TABLE races ADD COLUMN course_variant TEXT NOT NULL DEFAULT ''")
+
     conn.commit()
     conn.close()
 
@@ -66,9 +70,10 @@ def save_race(race: RaceInfo) -> None:
     cursor.execute("DELETE FROM races WHERE race_id = ?", (race.race_id,))
 
     cursor.execute("""
-        INSERT INTO races (race_id, race_name, track_name, surface_type, distance, track_condition, weather)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (race.race_id, race.race_name, race.track_name, race.surface_type, race.distance, race.track_condition, race.weather))
+        INSERT INTO races (race_id, race_name, track_name, surface_type, distance, track_condition, weather, course_variant)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (race.race_id, race.race_name, race.track_name, race.surface_type, race.distance, race.track_condition, race.weather,
+          race.course_variant))
 
     for h in race.horses:
         cursor.execute("""
@@ -125,7 +130,8 @@ def get_race_by_id(race_id: str) -> Optional[RaceInfo]:
         distance=race_row["distance"],
         track_condition=race_row["track_condition"],
         weather=race_row["weather"],
-        horses=horses
+        horses=horses,
+        course_variant=race_row["course_variant"]
     )
 
 def list_all_races() -> List[Dict[str, Any]]:

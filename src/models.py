@@ -162,6 +162,7 @@ class RaceInfo:
     track_condition: str  # 良, 稍重, 重, 不良
     weather: str          # 晴, 曇, 雨
     horses: List[HorseEntry]
+    course_variant: str = ""   # 内 / 外 / 直 / "" (see src/course_specs.py)
 
     def get_track_profile(self) -> Dict[str, Any]:
         return JRA_TRACK_PROFILES.get(self.track_name, JRA_TRACK_PROFILES["東京"])
@@ -177,5 +178,6 @@ class RaceInfo:
             "track_condition": self.track_condition,
             "weather": self.weather,
             "track_profile": profile,
+            "course_variant": self.course_variant,
             "horses": [h.to_dict() for h in self.horses]
         }

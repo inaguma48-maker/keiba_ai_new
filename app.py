@@ -16,6 +16,8 @@ from src.models import RaceInfo, HorseEntry
 from src.data import get_sample_races
 from src.jra_importer import parse_jra_text
 from src.jra_site import JraClient, JraSiteError, card_to_race_info, cname_from_url, pick_target_date
+from src.course_specs import get_course
+from src.replay import ReplayError, keiba_db_path, load_replay
 from src.db import init_db, save_race, get_race_by_id, list_all_races
 
 app = Flask(__name__)
@@ -79,6 +81,27 @@ def get_race_detail(race_id: str):
     if not race:
         return jsonify({"status": "error", "message": "Race not found"}), 404
     return jsonify({"status": "success", "race": race.to_dict()})
+
+
+@app.route("/api/course", methods=["GET"])
+def course_info():
+    """Official course dimensions (JRA) for the race's venue / surface / distance."""
+    spec = get_course(request.args.get("venue", ""), request.args.get("surface", ""),
+                      int(request.args.get("distance", 0) or 0), request.args.get("variant", ""))
+    if spec is None:
+        return jsonify({"status": "error", "message": "このコースの寸法データがありません（障害・未対応のコース）。"}), 404
+    return jsonify({"status": "success", "course": spec})
+
+
+@app.route("/api/replay/<race_id>", methods=["GET"])
+def replay(race_id: str):
+    """Real finish times / last-3F of a past race, from the local keiba.db."""
+    try:
+        return jsonify({"status": "success", **load_replay(keiba_db_path(), race_id, request.args.get("variant", ""))})
+    except ReplayError as e:
+        return jsonify({"status": "error", "message": str(e)}), 404
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 @app.route("/api/auto_fetch_jra", methods=["POST"])

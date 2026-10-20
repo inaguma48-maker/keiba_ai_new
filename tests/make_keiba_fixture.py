@@ -15,6 +15,7 @@ create table race_entries (id integer primary key, race_id text, horse_id text, 
 create table race_results (id integer primary key, race_entry_id int, finish_position int, time_raw text,
   time_seconds numeric, margin text, passing_positions text, last_3f numeric);
 create table payouts (id integer primary key, race_id text, bet_type text, combination text, amount_yen int, popularity int);
+create table horses (horse_id text primary key, horse_name text, created_at datetime);
 create table odds_history (id integer primary key, race_id text, horse_number int, recorded_at datetime,
   snapshot_label text, win_odds numeric, place_odds_low numeric, place_odds_high numeric, popularity int);
 create table horse_features (id integer primary key, race_id text, horse_id text, feature_version_id int,
@@ -39,9 +40,10 @@ def build(path, n_races=900, seed=7):
         surface = "芝→ダート" if obstacle else rng.choice(["turf", "dirt", "芝 外"])
         category = "障害3歳以上" if obstacle else "3歳以上"
         rid = f"10{(r % 4) + 5:02d}{d.year}{1 + r % 4:02d}{1 + r % 9:02d}{1 + r % 12:02d}{d:%Y%m%d}{r:03d}"
+        dist = int(rng.choice([1200, 1600, 2000, 2400]))
         con.execute("insert into races values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (rid, d.isoformat(), venue, 1, 1, 1 + r % 12, "t", None, category, "1勝クラス", None, "馬齢",
-                     str(surface), int(rng.choice([1200, 1600, 2000])), "良", "晴", "15:00"))
+                     str(surface), dist, "良", "晴", "15:00"))
         n = int(rng.integers(8, 17))
         ability = rng.normal(0, 1, n)
         perf = ability + rng.normal(0, 1.3, n)
@@ -70,8 +72,12 @@ def build(path, n_races=900, seed=7):
                         (eid, rid, f"H{r}_{i}", hn, 1 + i // 2, "牡", 4, 56.0, "J1", "T1",
                          int(rng.normal(480, 20)), int(rng.integers(-8, 9)), None,
                          None if nonstarter else int(pop[i])))
+            tm = dist / 16.4 + 0.14 * (finish[i] - 1) + float(rng.uniform(0, 0.05))   # times never invert the finish order
+            l3 = 34.0 + 0.12 * (finish[i] - 1) + float(rng.normal(0, 0.5))
             con.execute("insert into race_results values (?,?,?,?,?,?,?,?)",
-                        (eid, eid, None if nonstarter else int(finish[i]), "", 95.0, "", "", 35.0))
+                        (eid, eid, None if nonstarter else int(finish[i]), "", None if nonstarter else round(tm, 1), "", "",
+                         None if nonstarter else round(l3, 1)))
+            con.execute("insert into horses values (?,?,?)", (f"H{r}_{i}", f"テストホース{r}-{hn}", "2026-01-01"))
             con.execute("insert into horse_features values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                         (fid, rid, f"H{r}_{i}", 3, float(rng.integers(0, 30)),
                          float(np.clip(0.1 + 0.08 * ability[i] + rng.normal(0, 0.05), 0, 1)),

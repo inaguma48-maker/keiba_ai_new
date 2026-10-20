@@ -190,7 +190,7 @@ def test_flask_api_endpoints(monkeypatch):
     auto = client.post("/api/auto_fetch_jra").get_json()
     assert auto["status"] == "success" and len(auto["results"]) == 1
     r = auto["results"][0]
-    assert r["race"]["race_id"] == "202610170511" and len(r["predictions"]) == 2   # scratched horse excluded
+    assert r["race"]["race_id"] == "1005202604061120261017" and len(r["predictions"]) == 2   # scratched horse excluded
     assert "recommendations" not in r
 
     # URL import and text import
