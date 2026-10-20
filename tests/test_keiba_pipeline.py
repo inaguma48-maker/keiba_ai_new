@@ -61,3 +61,27 @@ def test_train_writes_report_and_model_and_never_modifies_db(tmp_path):
 def test_missing_db_is_a_clear_error(tmp_path, capsys):
     assert train.main([str(tmp_path / "nope.db")]) == 1
     assert "見つかりません" in capsys.readouterr().err
+
+
+def test_eval_with_real_odds_runs_and_is_read_only(tmp_path):
+    from keiba import eval_odds
+    db = _db(tmp_path)
+    before = db.read_bytes()
+    rc = eval_odds.main([str(db), *ARGS, "--out-dir", str(tmp_path / "rep")])
+    assert rc == 0
+    report = open(glob.glob(str(tmp_path / "rep" / "eval_odds_*.txt"))[0], encoding="utf-8").read()
+    assert "確定に近いオッズ" in report and "発走30分前のオッズ" in report
+    assert "能力×実オッズ" in report and "全頭に100円ずつ買った回収率" in report
+    assert "評価できません" not in report       # fixture has enough races with odds
+    assert db.read_bytes() == before
+
+
+def test_snapshot_before_post_never_uses_later_snapshots():
+    import pandas as pd
+    from keiba.eval_odds import snapshot_before_post
+    odds = pd.DataFrame({
+        "race_id": ["R"] * 3, "horse_number": [1] * 3, "win_odds": [5.0, 4.0, 3.0],
+        "label_dt": pd.to_datetime(["2026-01-01 13:00", "2026-01-01 14:30", "2026-01-01 15:10"])})
+    posts = pd.DataFrame({"race_id": ["R"], "post_dt": pd.to_datetime(["2026-01-01 15:00"])})
+    got = snapshot_before_post(odds, posts, 30)
+    assert list(got["win_odds"]) == [4.0]       # 14:30 is the latest at least 30 min before 15:00

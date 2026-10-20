@@ -81,6 +81,14 @@ def calibration(df, p, bins=10):
     return [f"  {int(i) + 1:>2}分位  予測 {r.pred * 100:5.1f}%  実際 {r.actual * 100:5.1f}%  (n={int(r.n)})" for i, r in g.iterrows()]
 
 
+def fit_all(train, valid, feature_cols):
+    """Stage1 model, popularity table, and Stage2 weights (fitted on the validation period)."""
+    m1 = md.fit_stage1(train, valid, feature_cols)
+    rank_table = md.fit_rank_table(train)
+    alpha, beta, _ = md.fit_blend(valid, md.predict_stage1(m1, valid, feature_cols), md.predict_rank(rank_table, valid))
+    return m1, rank_table, alpha, beta
+
+
 def run(db_path, train_end, valid_end, out_dir=None, model_dir=None, feature_version=None) -> str:
     out_dir = out_dir or os.path.join(ROOT, "data", "reports")
     model_dir = model_dir or os.path.join(ROOT, "models")
@@ -91,11 +99,7 @@ def run(db_path, train_end, valid_end, out_dir=None, model_dir=None, feature_ver
         if part["race_id"].nunique() < 20:
             raise ValueError(f"{name}期間のレースが少なすぎます({part['race_id'].nunique()}件)。期間の指定を見直してください。")
 
-    m1 = md.fit_stage1(train, valid, feature_cols)
-    rank_table = md.fit_rank_table(train)
-
-    p1_v, pr_v = md.predict_stage1(m1, valid, feature_cols), md.predict_rank(rank_table, valid)
-    alpha, beta, _ = md.fit_blend(valid, p1_v, pr_v)
+    m1, rank_table, alpha, beta = fit_all(train, valid, feature_cols)
 
     ids_t = test["race_id"].to_numpy()
     p1_t = md.predict_stage1(m1, test, feature_cols)

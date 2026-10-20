@@ -15,6 +15,8 @@ create table race_entries (id integer primary key, race_id text, horse_id text, 
 create table race_results (id integer primary key, race_entry_id int, finish_position int, time_raw text,
   time_seconds numeric, margin text, passing_positions text, last_3f numeric);
 create table payouts (id integer primary key, race_id text, bet_type text, combination text, amount_yen int, popularity int);
+create table odds_history (id integer primary key, race_id text, horse_number int, recorded_at datetime,
+  snapshot_label text, win_odds numeric, place_odds_low numeric, place_odds_high numeric, popularity int);
 create table horse_features (id integer primary key, race_id text, horse_id text, feature_version_id int,
   career_starts_before float, career_win_rate_before float, career_top3_rate_before float, avg_finish_last5 float,
   avg_last3f_last5 float, days_since_last_race float, jockey_win_rate_before float, trainer_win_rate_before float,
@@ -39,7 +41,7 @@ def build(path, n_races=900, seed=7):
         rid = f"10{(r % 4) + 5:02d}{d.year}{1 + r % 4:02d}{1 + r % 9:02d}{1 + r % 12:02d}{d:%Y%m%d}{r:03d}"
         con.execute("insert into races values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (rid, d.isoformat(), venue, 1, 1, 1 + r % 12, "t", None, category, "1勝クラス", None, "馬齢",
-                     str(surface), int(rng.choice([1200, 1600, 2000])), "良", "晴", "10:00"))
+                     str(surface), int(rng.choice([1200, 1600, 2000])), "良", "晴", "15:00"))
         n = int(rng.integers(8, 17))
         ability = rng.normal(0, 1, n)
         perf = ability + rng.normal(0, 1.3, n)
@@ -48,6 +50,17 @@ def build(path, n_races=900, seed=7):
         finish[order] = np.arange(1, n + 1)
         pop = np.empty(n, int)
         pop[np.argsort(-(ability + rng.normal(0, 0.8, n)))] = np.arange(1, n + 1)
+        q = np.exp(ability + rng.normal(0, 0.8, n))
+        q = q / q.sum()
+        odds = np.maximum(1.1, np.round(0.8 / q, 1))
+        oid = 0
+        for label_t in ("13:00", "14:30", "15:10"):
+            for i in range(n):
+                oid += 1
+                con.execute("insert into odds_history (race_id, horse_number, recorded_at, snapshot_label, win_odds, "
+                            "place_odds_low, place_odds_high, popularity) values (?,?,?,?,?,?,?,?)",
+                            (rid, i + 1, f"{d.isoformat()} {label_t}:05.123456", f"{d.isoformat()}T{label_t}",
+                             float(odds[i]), 1.1, 1.5, int(pop[i])))
         for i in range(n):
             eid += 1
             fid += 1
@@ -69,6 +82,6 @@ def build(path, n_races=900, seed=7):
                          None, float(pop[i]), float(pop[i]) / n, None, "2026-01-01"))
         w = int(np.argmin(finish))
         pid += 1
-        con.execute("insert into payouts values (?,?,?,?,?,?)", (pid, rid, "win", str(w + 1), int(100 * (1 + pop[w] * 1.3)), int(pop[w])))
+        con.execute("insert into payouts values (?,?,?,?,?,?)", (pid, rid, "win", str(w + 1), int(round(100 * odds[w])), int(pop[w])))
     con.commit()
     con.close()
