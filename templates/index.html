@@ -223,6 +223,14 @@
                                 <option value="4">×4</option>
                                 <option value="8">×8</option>
                             </select>
+                            <select id="select-ability-stage" class="form-select form-select-sm bg-dark text-white border-secondary" style="width: auto;" title="シミュレーションに使う勝率">
+                                <option value="1">層1: 能力のみ</option>
+                                <option value="2">層2: 能力×人気順位</option>
+                            </select>
+                            <button id="btn-simulate" class="btn btn-sm btn-success fw-bold" disabled title="選んだ層の勝率でサイコロを振り、レースを作って走らせます">
+                                <i class="fa-solid fa-dice me-1"></i> シミュレーション
+                            </button>
+                            <button id="btn-real" class="btn btn-sm btn-outline-light d-none">実際の結果に戻す</button>
                             <div class="btn-group btn-group-sm" role="group">
                                 <button id="btn-start-sim" class="btn btn-warning fw-bold text-dark" disabled>
                                     <i class="fa-solid fa-play me-1"></i> 再生
@@ -296,6 +304,7 @@
 
     <!-- Bootstrap 5 JS Bundle -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/sim.js"></script>
     <script src="/static/replay.js"></script>
     <script src="/static/app.js"></script>
 </body>

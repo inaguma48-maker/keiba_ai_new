@@ -133,3 +133,17 @@ def test_replay_finds_the_race_by_date_venue_and_number_when_ids_differ(keiba_db
     assert load_replay(str(keiba_db), other_id)["race"]["race_id"] == rid
     with pytest.raises(ReplayError, match="まだありません"):
         load_replay(str(keiba_db), f"10{code}20990101010199{number:02d}20990101"[:22].replace("99", "01", 1))
+
+
+def test_typical_times_use_past_winners(keiba_db):
+    from src.replay import typical_times
+    con = sqlite3.connect(keiba_db)
+    venue, dist, surf = con.execute("select venue, distance_m, surface from races where surface in ('turf','dirt') and category not like '%障害%' "
+                                    "group by venue, distance_m, surface having count(*) >= 8 limit 1").fetchone()
+    con.close()
+    b = typical_times(str(keiba_db), venue, "芝" if surf == "turf" else "ダート", dist, going="良")
+    assert b and b["n"] >= 5 and 12 <= dist / b["winner_time_s"] <= 20 and 28 <= b["last3f_s"] <= 48
+    assert typical_times(str(keiba_db), "東京", "障害", 3000) is None
+    import app as app_module
+    r = app_module.app.test_client().get("/api/baseline", query_string={"venue": venue, "surface": surf, "distance": dist}).get_json()
+    assert r["status"] == "success" and r["baseline"]["n"] >= 5

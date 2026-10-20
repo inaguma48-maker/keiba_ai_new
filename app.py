@@ -17,7 +17,9 @@ from src.data import get_sample_races
 from src.jra_importer import parse_jra_text
 from src.jra_site import JraClient, JraSiteError, card_to_race_info, cname_from_url, pick_target_date
 from src.course_specs import get_course
-from src.replay import ReplayError, keiba_db_path, load_replay
+from src.replay import ReplayError, keiba_db_path, load_replay, resolve_race, typical_times
+from keiba.dataset import connect_ro
+from keiba.predict import AbilityError, latest_bundle, stage_probs
 from src.db import init_db, save_race, get_race_by_id, list_all_races
 
 app = Flask(__name__)
@@ -102,6 +104,42 @@ def replay(race_id: str):
         return jsonify({"status": "error", "message": str(e)}), 404
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/ability", methods=["POST"])
+def ability():
+    """Win probabilities from the ability model: stage 1 (ability only) or stage 2 (ability x popularity rank)."""
+    data = request.get_json() or {}
+    horses = data.get("horses") or []
+    try:
+        stage = int(data.get("stage", 1))
+        if len(horses) < 2:
+            return jsonify({"status": "error", "message": "出走馬が2頭以上必要です。"}), 400
+        bundle = latest_bundle()
+        db = keiba_db_path()
+        con = connect_ro(db)
+        try:
+            race_id, _ = resolve_race(con, str(data.get("race_id", "")))
+        finally:
+            con.close()
+        probs = stage_probs(db, race_id, horses, stage, bundle)
+        return jsonify({"status": "success", "stage": stage, "probs": {str(k): v for k, v in probs.items()},
+                        "model": {"trained_at": bundle.get("trained_at"), "train_end": bundle.get("train_end"),
+                                  "alpha": bundle.get("alpha"), "beta": bundle.get("beta")}})
+    except (AbilityError, ReplayError) as e:
+        return jsonify({"status": "error", "message": str(e)}), 404
+    except FileNotFoundError:
+        return jsonify({"status": "error", "message": "過去データ(keiba.db)が見つかりません。"}), 404
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/baseline", methods=["GET"])
+def baseline():
+    """Typical winning time / last 3F for the venue, surface and distance (past winners in keiba.db), or null."""
+    b = typical_times(keiba_db_path(), request.args.get("venue", ""), request.args.get("surface", ""),
+                      int(request.args.get("distance", 0) or 0))
+    return jsonify({"status": "success", "baseline": b})
 
 
 @app.route("/api/auto_fetch_jra", methods=["POST"])

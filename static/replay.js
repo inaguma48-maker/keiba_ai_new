@@ -28,6 +28,7 @@
         mapc.width = W * dpr; mapc.height = DIM.mH * dpr; mapc.style.height = DIM.mH + "px";
     }
     let raf = null, lastTs = null;
+    let CUR = null;        // { race, course } of the race on screen (for the simulation button)
 
     // ---------- distance curves (real time + real last 3F) ----------
     function hermite(a, b, t) {
@@ -250,6 +251,10 @@
         if (offL) { c.fillStyle = "rgba(0,0,0,0.6)"; c.fillRect(6, H * 0.88, 74, 20); c.fillStyle = "#fff"; c.textAlign = "left"; c.font = "bold 12px sans-serif"; c.fillText(`◀ ${offL}頭`, 12, H * 0.88 + 14); }
         if (offR) { c.fillStyle = "rgba(0,0,0,0.6)"; c.fillRect(W - 80, H * 0.88, 74, 20); c.fillStyle = "#fff"; c.textAlign = "right"; c.font = "bold 12px sans-serif"; c.fillText(`${offR}頭 ▶`, W - 12, H * 0.88 + 14); }
 
+        if (s.sim) {
+            c.fillStyle = "rgba(230,81,0,0.92)"; const tw = 168 * DIM.k; c.fillRect((W - tw) / 2, 8, tw, 26 * DIM.k);
+            c.fillStyle = "#fff"; c.font = `bold ${Math.round(13 * DIM.k)}px sans-serif`; c.textAlign = "center"; c.fillText("SIMULATION（架空）", W / 2, 8 + 18 * DIM.k);
+        }
         if (!s.hasReplay && s.msg) {
             const k2 = DIM.k, lines = [], text = "リプレイできません: " + s.msg;
             for (let i = 0; i < text.length; i += 26) lines.push(text.slice(i, i + 26));
@@ -334,17 +339,21 @@
         marks.forEach(([m, text]) => { if (rem <= m && rem > 0 && !s.said[m]) { s.said[m] = true; msg = text; } });
         if (!s.finished && s.t >= s.Tw && s.t > 0) {
             s.finished = true;
-            const w = s.runners.find(r => r.finish === 1) || lead;
-            msg = `ゴール！ ${nm(w)} が1着。タイム ${fmtTime(w.time_s)}${w.last3f_s ? "、上がり3F " + w.last3f_s.toFixed(1) : ""}。`;
+            msg = finishText();
             showResult();
         }
         if (msg) say.textContent = msg;
     }
 
+    function finishText() {
+        const w = S.runners.find(r => r.finish === 1) || S.order[0];
+        return `ゴール！ ${w.horse_number}番${w.horse_name} が1着${S.sim ? "（シミュレーション）" : ""}。タイム ${fmtTime(w.time_s)}${w.last3f_s ? "、上がり3F " + w.last3f_s.toFixed(1) : ""}。`;
+    }
+
     function showResult() {
         const el = $("replay-result"); if (!el) return;
         const rows = S.runners.slice().sort((a, b) => (a.finish || 99) - (b.finish || 99));
-        el.innerHTML = `<table class="table table-sm mb-0"><thead><tr><th>着</th><th>馬番</th><th>馬名</th><th>タイム</th><th>上がり3F</th></tr></thead><tbody>` +
+        el.innerHTML = (S.sim ? `<div class="fw-bold text-danger mb-1">シミュレーション結果（実際の結果ではありません）</div>` : "") + `<table class="table table-sm mb-0"><thead><tr><th>着</th><th>馬番</th><th>馬名</th><th>タイム</th><th>上がり3F</th></tr></thead><tbody>` +
             rows.map(r => `<tr><td>${r.finish || "—"}</td><td>${r.horse_number}</td><td>${esc(r.horse_name)}</td><td>${r.time_s ? fmtTime(r.time_s) : "—"}</td><td>${r.last3f_s ? r.last3f_s.toFixed(1) : "—"}</td></tr>`).join("") + "</tbody></table>";
     }
 
@@ -364,7 +373,9 @@
 
     function seek(t) {
         S.t = clamp(t, -GATE_S, S.Tend); S.said = {}; S.finished = S.t >= S.Tw && S.Tw > 0;
+        const res = $("replay-result"); if (res && !S.finished) res.innerHTML = "";
         step(0, true); draw();
+        if (S.finished && S.hasReplay) { showResult(); const say = $("broadcast-commentary-text"); if (say) say.textContent = finishText(); }
     }
 
     function setNote(text, warn) { const n = $("replay-note"); if (n) { n.textContent = text; n.className = "small mb-2 " + (warn ? "text-danger" : "text-muted"); } }
@@ -390,7 +401,12 @@
         if (!course) {
             try { const r = await fetch(`/api/course?${q}`); const j = await r.json(); if (j.status === "success") course = j.course; else msg = msg || j.message; } catch (e) { /* ignore */ }
         }
-        if (!course) { setNote(msg || "このコースは表示できません。", true); clear(); return; }
+        const simBtn = $("btn-simulate"), realBtn = $("btn-real");
+        if (realBtn) realBtn.classList.add("d-none");
+        if (simBtn) simBtn.innerHTML = '<i class="fa-solid fa-dice me-1"></i> シミュレーション';
+        if (!course) { CUR = null; if (simBtn) simBtn.disabled = true; setNote(msg || "このコースは表示できません。", true); clear(); return; }
+        CUR = { race, course };
+        if (simBtn) simBtn.disabled = !(race.horses && race.horses.length >= 2);
         fit(); setBadges(course);
         let runners, has = !!replay;
         if (has) runners = replay.runners; else runners = race.horses.map(h => ({ horse_number: h.horse_number, horse_name: h.horse_name, frame: null, finish: null, time_s: null, last3f_s: null }));
@@ -401,6 +417,50 @@
         const b = $("btn-start-sim"), r2 = $("btn-reset-sim"); if (b) b.disabled = !has; if (r2) r2.disabled = !has;
         const say = $("broadcast-commentary-text"); if (say) say.textContent = has ? "再生ボタンでレースが始まります。" : `リプレイできません: ${msg}`;
         step(0, true); S.camD = (S.order[0].d); draw(); setButton();
+        raf = requestAnimationFrame(frame);
+    }
+
+    async function startSimulation() {
+        if (!CUR) return;
+        const { race, course } = CUR;
+        const horses = race.horses;
+        const stage = parseInt(($("select-ability-stage") || { value: "1" }).value, 10);
+        const say0 = $("broadcast-commentary-text");
+        let ab = null;
+        try {
+            const r = await fetch("/api/ability", { method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ race_id: race.race_id, stage, horses: horses.map(h => ({ horse_number: h.horse_number, odds: h.odds })) }) });
+            ab = await r.json();
+        } catch (e) { ab = { status: "error", message: "通信に失敗しました。" }; }
+        if (ab.status !== "success") {
+            setNote(`シミュレーションできません: ${ab.message}`, true);
+            if (say0) say0.textContent = `シミュレーションできません: ${ab.message}`;
+            return;
+        }
+        let base = null;
+        try {
+            const q = new URLSearchParams({ venue: race.track_name, surface: race.surface_type, distance: race.distance });
+            const j = await (await fetch(`/api/baseline?${q}`)).json();
+            if (j.status === "success" && j.baseline) base = j.baseline;
+        } catch (e) { /* use the rough approximation */ }
+        if (!base) base = RaceSim.fallbackBase(race.distance, course.surface);
+        const runners = RaceSim.simulate(horses, base, { probs: horses.map(h => ab.probs[String(h.horse_number)]) });
+        runners.forEach(r => { const h = horses.find(x => x.horse_number === r.horse_number); r.jockey = h ? h.jockey_name : ""; });
+        if (raf) cancelAnimationFrame(raf), raf = null;
+        lastTs = null;
+        const speed = parseFloat(($("select-replay-speed") || { value: "2" }).value);
+        S = buildState(course, runners, race, true);
+        S.sim = true; S.speed = speed; S.msg = ""; S.playing = true;
+        const res = $("replay-result"); if (res) res.innerHTML = "";
+        const how = stage === 1
+            ? "層1（能力のみ。オッズも人気順位も使いません）。過去の検証では、この層で1番手に選んだ馬の1着率は27.0%で、人気1位(33.3%)を下回りました。"
+            : "層2（能力×人気順位。人気順位は画面のオッズの低い順）。過去の検証では、人気順位だけより確率の質が少し良い(0.0085)程度で、実際のオッズとの比較では改善を確認できていません。";
+        setNote(`シミュレーション: ${how} 勝率でサイコロを振って作った架空のレースで、押すたびに変わります。実際の結果の予想ではありません。勝ち時計・上がり3Fは ${base.source}。`, false);
+        const say = $("broadcast-commentary-text"); if (say) say.textContent = "シミュレーション開始。各馬ゲートイン。";
+        const b = $("btn-start-sim"), r2 = $("btn-reset-sim"), real = $("btn-real"), sim = $("btn-simulate");
+        if (b) b.disabled = false; if (r2) r2.disabled = false; if (real) real.classList.remove("d-none");
+        if (sim) sim.innerHTML = '<i class="fa-solid fa-dice me-1"></i> もう一度';
+        step(0, true); S.camD = S.order[0].d; draw(); setButton();
         raf = requestAnimationFrame(frame);
     }
 
@@ -417,6 +477,8 @@
             S.playing = !S.playing; setButton();
         });
         $("btn-reset-sim") && $("btn-reset-sim").addEventListener("click", () => { if (!S) return; S.playing = false; seek(-GATE_S); const res = $("replay-result"); if (res) res.innerHTML = ""; setButton(); });
+        $("btn-simulate") && $("btn-simulate").addEventListener("click", startSimulation);
+        $("btn-real") && $("btn-real").addEventListener("click", () => { if (CUR) setRace(CUR.race); const sim = $("btn-simulate"); if (sim) sim.innerHTML = '<i class="fa-solid fa-dice me-1"></i> シミュレーション'; });
         $("select-replay-speed") && $("select-replay-speed").addEventListener("change", e => { if (S) S.speed = parseFloat(e.target.value); });
         $("replay-seek") && $("replay-seek").addEventListener("input", e => { if (S && S.hasReplay) { S.playing = false; setButton(); seek(-GATE_S + (parseFloat(e.target.value) / 1000) * (S.Tend + GATE_S)); } });
     }

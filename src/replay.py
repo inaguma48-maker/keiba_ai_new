@@ -29,26 +29,31 @@ def _f(v) -> Optional[float]:
         return None
 
 
+RACE_COLS = "race_date, venue, surface, distance_m, track_condition, race_name, category"
+
+
+def resolve_race(con, race_id: str):
+    """(race_id in keiba.db, race row). The id format may differ between sources, so fall back to date + venue + race number."""
+    race = con.execute(f"select {RACE_COLS} from races where race_id=?", (race_id,)).fetchone()
+    if race:
+        return race_id, race
+    m = re.fullmatch(r"10(\d{2})\d{4}\d{2}\d{2}(\d{2})(\d{4})(\d{2})(\d{2})", race_id)
+    if m and m.group(1) in VENUE_CODES:
+        where = (f"{m.group(3)}-{m.group(4)}-{m.group(5)}", VENUE_CODES[m.group(1)], int(m.group(2)))
+        found = con.execute(f"select race_id, {RACE_COLS} from races where race_date=? and venue=? and race_number=?", where).fetchone()
+        if found:
+            return found[0], found[1:]
+        raise ReplayError(f"このレース（{where[0]} {where[1]}{where[2]}R）は、過去データ(keiba.db)に、まだありません。"
+                          "結果が取り込まれるのを待つ必要があります。")
+    raise ReplayError("このレースは過去データ(keiba.db)にありません。")
+
+
 def load_replay(db_path: str, race_id: str, variant: str = "") -> Dict[str, Any]:
     if not Path(db_path).is_file():
         raise ReplayError("過去データ(keiba.db)が見つかりません。環境変数 KEIBA_DB でファイルの場所を指定してください。")
     con = connect_ro(db_path)
     try:
-        cols = "race_date, venue, surface, distance_m, track_condition, race_name, category"
-        race = con.execute(f"select {cols} from races where race_id=?", (race_id,)).fetchone()
-        if not race:
-            # the id format may differ between sources: match on date + venue + race number
-            m = re.fullmatch(r"10(\d{2})\d{4}\d{2}\d{2}(\d{2})(\d{4})(\d{2})(\d{2})", race_id)
-            if m and m.group(1) in VENUE_CODES:
-                where = (f"{m.group(3)}-{m.group(4)}-{m.group(5)}", VENUE_CODES[m.group(1)], int(m.group(2)))
-                found = con.execute(f"select race_id, {cols} from races where race_date=? and venue=? and race_number=?", where).fetchone()
-                if found:
-                    race_id, race = found[0], found[1:]
-                else:
-                    raise ReplayError(f"このレース（{where[0]} {where[1]}{where[2]}R）は、過去データ(keiba.db)に、まだありません。"
-                                      "結果が取り込まれるのを待つ必要があります。")
-        if not race:
-            raise ReplayError("このレースは過去データ(keiba.db)にありません。")
+        race_id, race = resolve_race(con, race_id)
         rows = con.execute(
             "select e.horse_number, e.frame_number, h.horse_name, x.finish_position, x.time_seconds, x.last_3f, e.popularity "
             "from race_entries e left join race_results x on x.race_entry_id = e.id "
@@ -90,3 +95,32 @@ def load_replay(db_path: str, race_id: str, variant: str = "") -> Dict[str, Any]
         "source": "keiba.db",
         "notes": ["走行距離は、実際の競走タイムと上がり3Fに合わせています。馬どうしの間隔と走るコースは、タイムから計算した表示です。"],
     }
+
+
+def typical_times(db_path: str, venue: str, surface: str, distance: int, going: str = "良", min_n: int = 5) -> Optional[Dict[str, Any]]:
+    """Median winning time and last-3F of the winners at this venue / surface / distance (flat races)."""
+    if not Path(db_path).is_file():
+        return None
+    kind = {"芝": "turf", "turf": "turf", "ダート": "dirt", "dirt": "dirt"}.get(surface)
+    if kind is None:
+        return None
+    surf_sql = "(r.surface = 'turf' or r.surface like '芝%')" if kind == "turf" else "(r.surface = 'dirt' or r.surface like 'ダ%')"
+    con = connect_ro(db_path)
+    try:
+        base = ("select x.time_seconds, x.last_3f from races r join race_entries e on e.race_id = r.race_id "
+                "join race_results x on x.race_entry_id = e.id where r.venue = ? and r.distance_m = ? and x.finish_position = 1 "
+                f"and r.category not like '%障害%' and {surf_sql} and x.time_seconds is not null and x.last_3f is not null")
+        rows = con.execute(base + " and r.track_condition = ?", (venue, int(distance), going)).fetchall()
+        used = going
+        if len(rows) < min_n:
+            rows, used = con.execute(base, (venue, int(distance))).fetchall(), "全馬場"
+    finally:
+        con.close()
+    pairs = [(float(t), float(l)) for t, l in rows if 12.0 <= distance / float(t) <= 20.0 and 28.0 <= float(l) <= 48.0]
+    if len(pairs) < min_n:
+        return None
+    ts, ls = sorted(p[0] for p in pairs), sorted(p[1] for p in pairs)
+    mid = len(pairs) // 2
+    med = lambda v: v[mid] if len(v) % 2 else (v[mid - 1] + v[mid]) / 2
+    return {"winner_time_s": round(med(ts), 2), "last3f_s": round(med(ls), 2), "n": len(pairs), "going": used,
+            "source": f"過去{len(pairs)}レースの1着馬の中央値（{used}）"}

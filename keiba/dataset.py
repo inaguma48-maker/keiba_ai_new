@@ -75,15 +75,41 @@ def load_raw(db_path, feature_version: Optional[int] = None) -> Tuple[pd.DataFra
     return df, fv
 
 
-def prepare(df: pd.DataFrame) -> Tuple[pd.DataFrame, List[str], List[str]]:
-    """Clean, scope and add features. Returns (frame, feature_cols, categorical_cols)."""
+def load_race(db_path, race_id: str, feature_version: int) -> pd.DataFrame:
+    """Entries of one race with the stored pre-race features (results, if any, are ignored by Stage1)."""
+    con = connect_ro(db_path)
+    try:
+        races = pd.read_sql_query(
+            "select race_id, race_date, venue, surface, distance_m, track_condition, race_class, category, weight_type "
+            "from races where race_id = ?", con, params=(race_id,))
+        entries = pd.read_sql_query(
+            "select id as entry_id, race_id, horse_id, horse_number, frame_number, sex, age, weight_carried, body_weight, "
+            "body_weight_diff, popularity from race_entries where race_id = ?", con, params=(race_id,))
+        feats = pd.read_sql_query("select * from horse_features where race_id = ? and feature_version_id = ?", con,
+                                  params=(race_id, feature_version))
+    finally:
+        con.close()
+    feats = feats.drop_duplicates(["race_id", "horse_id"], keep="last")
+    df = entries.merge(races, on="race_id", how="inner")
+    df = df.merge(feats.drop(columns=[c for c in ("id", "feature_version_id", "created_at") if c in feats]),
+                  on=["race_id", "horse_id"], how="left")
+    df["finish_position"] = np.nan
+    return df
+
+
+def prepare(df: pd.DataFrame, upcoming: bool = False) -> Tuple[pd.DataFrame, List[str], List[str]]:
+    """Clean, scope and add features. Returns (frame, feature_cols, categorical_cols).
+
+    upcoming=True keeps every entry (a race that has not been run has no popularity / result to tell scratches apart)."""
     df = df.copy()
     df["race_date"] = pd.to_datetime(df["race_date"])
     df["surface_norm"] = [surface_norm(s, c) for s, c in zip(df["surface"], df["category"])]
     df = df[df["surface_norm"].isin(["turf", "dirt"])]
 
     # Non-starters (scratched/excluded) have neither a popularity nor a result.
-    df = df[~(df["popularity"].isna() & df["finish_position"].isna())].copy()
+    if not upcoming:
+        df = df[~(df["popularity"].isna() & df["finish_position"].isna())]
+    df = df.copy()
 
     for c in set(df.columns) - set(CATEGORICAL) - {"race_date", "race_id", "horse_id", "category", "surface"}:
         if df[c].dtype == object:

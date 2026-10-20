@@ -19,6 +19,7 @@ import pandas as pd
 
 from keiba import dataset as ds
 from keiba import model as md
+from keiba.predict import default_model_dir
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
@@ -91,7 +92,7 @@ def fit_all(train, valid, feature_cols):
 
 def run(db_path, train_end, valid_end, out_dir=None, model_dir=None, feature_version=None) -> str:
     out_dir = out_dir or os.path.join(ROOT, "data", "reports")
-    model_dir = model_dir or os.path.join(ROOT, "models")
+    model_dir = model_dir or default_model_dir()
     raw, fv = ds.load_raw(db_path, feature_version)
     df, feature_cols, cat_cols = ds.prepare(raw)
     train, valid, test = ds.split_by_date(df, train_end, valid_end)
