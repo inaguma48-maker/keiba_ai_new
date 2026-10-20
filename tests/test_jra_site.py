@@ -29,10 +29,11 @@ def test_parse_racecards():
     assert len(cards) == 1
     c = cards[0]
     assert (c.race_key, c.venue, c.race_number, c.grade) == ("202610170511", "東京", 11, "GⅡ")
+    assert c.db_race_id == "1005202604061120261017"  # '10'+東京05+2026+4回+6日+11R+date
     assert (c.surface, c.direction, c.distance, c.post_time) == ("芝", "左", 1600, "15:45")
     assert len(c.runners) == 3 and len(c.active_runners) == 2
     r = c.runners[0]
-    assert (r.horse_number, r.horse_name, r.horse_id, r.jockey_id, r.trainer_id) == (1, "アルファテスト", "2024100001", "1001", "1002")
+    assert (r.horse_number, r.horse_name, r.horse_id, r.jockey_id, r.trainer_id) == (1, "アルファテスト", "02024100001", "1001", "1002")
     assert (r.horse_weight, r.weight_change, r.impost, r.odds) == (464.0, "+10", 57.0, 2.5)
     assert c.runners[2].scratched and c.runners[2].odds is None
 

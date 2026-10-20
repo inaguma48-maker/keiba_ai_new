@@ -7,3 +7,4 @@ model_cache.pkl
 data/
 db_structure.txt
 found_db.txt
+models/

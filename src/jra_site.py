@@ -80,6 +80,7 @@ class RunnerRow:
 @dataclass
 class RaceCard:
     race_key: str        # YYYYMMDD + venue(2) + race(2)
+    db_race_id: str      # '10' + venue(2) + year(4) + kai(2) + nichi(2) + race(2) + YYYYMMDD (JRA CNAME form, as in keiba.db)
     date: str
     venue: str
     venue_code: str
@@ -184,7 +185,7 @@ def _parse_runner(tr) -> Optional[RunnerRow]:
         waku=_int_or_none(waku_img.get("alt", "")) if waku_img else None,
         horse_number=num,
         horse_name=name,
-        horse_id=_id_from_link(horse_td.find("a"), "pw01dud00"),
+        horse_id=_id_from_link(horse_td.find("a"), "pw01dud0"),
         sex_age=_text(tr.select_one("td.age")),
         horse_weight=_float_or_none(_text(hw_td).split("(")[0]) if hw_td else None,
         weight_change=_text(change).strip("()") if change else None,
@@ -212,11 +213,11 @@ def parse_racecards(html: str) -> List[RaceCard]:
     for header, table in zip(headers, tables):
         date_cell = _text(header.select_one(".cell.date"))
         dm = re.search(r"(\d{4})年(\d{1,2})月(\d{1,2})日", date_cell)
-        vm = re.search(r"\d+回(\S+?)\d+日", date_cell)
+        vm = re.search(r"(\d+)回(\S+?)(\d+)日", date_cell)
         if not (dm and vm):
             raise JraSiteError(f"開催日・競馬場を解釈できません: {date_cell}")
         date = f"{int(dm.group(1)):04d}{int(dm.group(2)):02d}{int(dm.group(3)):02d}"
-        venue = vm.group(1)
+        kai, venue, nichi = int(vm.group(1)), vm.group(2), int(vm.group(3))
         venue_code = next((c for c, v in VENUE_CODES.items() if v == venue), None)
         if venue_code is None:
             raise JraSiteError(f"未知の競馬場: {venue}")
@@ -245,6 +246,7 @@ def parse_racecards(html: str) -> List[RaceCard]:
 
         cards.append(RaceCard(
             race_key=f"{date}{venue_code}{race_number:02d}",
+            db_race_id=f"10{venue_code}{date[:4]}{kai:02d}{nichi:02d}{race_number:02d}{date}",
             date=date,
             venue=venue,
             venue_code=venue_code,

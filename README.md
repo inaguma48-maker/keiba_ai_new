@@ -55,3 +55,12 @@ python3 app.py
 ```bash
 PYTHONPATH=. pytest -v
 ```
+
+## 過去データでの学習・評価（既存の keiba.db を読み取り専用で使用）
+```bash
+pip install -r requirements.txt
+python tools/profile_keiba_db.py "C:\Users\<ユーザー名>\.keiba\db\keiba.db"   # DBの形式を集計表示
+python keiba/train.py "C:\Users\<ユーザー名>\.keiba\db\keiba.db"              # 学習・評価（レポートは data/reports/）
+```
+- 学習 〜2024-08-31 / 検証 〜2025-08-31 / テスト それ以降（`--train-end` `--valid-end` で変更可）。
+- 過去のオッズが無いため、市場の代わりに確定人気順位を使います。詳細は `docs/DESIGN.md` §7。
