@@ -5,11 +5,13 @@ Nothing is invented: a horse whose time cannot be trusted is flagged `estimated`
 """
 
 import os
+import re
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 from keiba.dataset import connect_ro, surface_norm
 from src.course_specs import get_course
+from src.jra_site import VENUE_CODES
 
 
 class ReplayError(Exception):
@@ -32,9 +34,19 @@ def load_replay(db_path: str, race_id: str, variant: str = "") -> Dict[str, Any]
         raise ReplayError("過去データ(keiba.db)が見つかりません。環境変数 KEIBA_DB でファイルの場所を指定してください。")
     con = connect_ro(db_path)
     try:
-        race = con.execute(
-            "select race_date, venue, surface, distance_m, track_condition, race_name, category from races where race_id=?",
-            (race_id,)).fetchone()
+        cols = "race_date, venue, surface, distance_m, track_condition, race_name, category"
+        race = con.execute(f"select {cols} from races where race_id=?", (race_id,)).fetchone()
+        if not race:
+            # the id format may differ between sources: match on date + venue + race number
+            m = re.fullmatch(r"10(\d{2})\d{4}\d{2}\d{2}(\d{2})(\d{4})(\d{2})(\d{2})", race_id)
+            if m and m.group(1) in VENUE_CODES:
+                where = (f"{m.group(3)}-{m.group(4)}-{m.group(5)}", VENUE_CODES[m.group(1)], int(m.group(2)))
+                found = con.execute(f"select race_id, {cols} from races where race_date=? and venue=? and race_number=?", where).fetchone()
+                if found:
+                    race_id, race = found[0], found[1:]
+                else:
+                    raise ReplayError(f"このレース（{where[0]} {where[1]}{where[2]}R）は、過去データ(keiba.db)に、まだありません。"
+                                      "結果が取り込まれるのを待つ必要があります。")
         if not race:
             raise ReplayError("このレースは過去データ(keiba.db)にありません。")
         rows = con.execute(

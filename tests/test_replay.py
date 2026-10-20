@@ -120,3 +120,16 @@ def test_db_migrates_old_schema_and_keeps_course_variant(tmp_path, monkeypatch):
     h = HorseEntry(1, "ア", "騎", "厩", 4, 480, 57.0, 80, 0.2, 0.1, 0.1, 0.8, 3.0)
     db.save_race(RaceInfo("R1", "n", "京都", "芝", 2000, "良", "晴", [h], course_variant="外"))
     assert db.get_race_by_id("R1").course_variant == "外"
+
+
+def test_replay_finds_the_race_by_date_venue_and_number_when_ids_differ(keiba_db):
+    con = sqlite3.connect(keiba_db)
+    rid, date, venue, number = con.execute(
+        "select race_id, race_date, venue, race_number from races where surface in ('turf','dirt') and category not like '%障害%' limit 1").fetchone()
+    con.close()
+    code = {v: k for k, v in __import__("src.jra_site", fromlist=["VENUE_CODES"]).VENUE_CODES.items()}[venue]
+    other_id = f"10{code}{date[:4]}0909{number:02d}{date.replace('-', '')}"      # same race, different kai/nichi digits
+    assert other_id != rid
+    assert load_replay(str(keiba_db), other_id)["race"]["race_id"] == rid
+    with pytest.raises(ReplayError, match="まだありません"):
+        load_replay(str(keiba_db), f"10{code}20990101010199{number:02d}20990101"[:22].replace("99", "01", 1))

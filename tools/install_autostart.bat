@@ -11,6 +11,8 @@ if not defined PYW (
   pause
   exit /b 1
 )
+echo Stopping the running app (if any) ...
+powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*keiba_app*app.py*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"
 echo Copying the app to "%DEST%" ...
 robocopy "%SRC%" "%DEST%" /E /XD .git data models __pycache__ /XF racing_app.db >nul
 if errorlevel 8 (

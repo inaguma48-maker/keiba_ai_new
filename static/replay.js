@@ -250,6 +250,14 @@
         if (offL) { c.fillStyle = "rgba(0,0,0,0.6)"; c.fillRect(6, H * 0.88, 74, 20); c.fillStyle = "#fff"; c.textAlign = "left"; c.font = "bold 12px sans-serif"; c.fillText(`◀ ${offL}頭`, 12, H * 0.88 + 14); }
         if (offR) { c.fillStyle = "rgba(0,0,0,0.6)"; c.fillRect(W - 80, H * 0.88, 74, 20); c.fillStyle = "#fff"; c.textAlign = "right"; c.font = "bold 12px sans-serif"; c.fillText(`${offR}頭 ▶`, W - 12, H * 0.88 + 14); }
 
+        if (!s.hasReplay && s.msg) {
+            const k2 = DIM.k, lines = [], text = "リプレイできません: " + s.msg;
+            for (let i = 0; i < text.length; i += 26) lines.push(text.slice(i, i + 26));
+            const bh = lines.length * 20 * k2 + 14, bw = Math.min(W - 24, 26 * 15 * k2 + 24);
+            c.fillStyle = "rgba(120,20,20,0.88)"; c.fillRect((W - bw) / 2, H * 0.12, bw, bh);
+            c.fillStyle = "#fff"; c.font = `bold ${Math.round(14 * k2)}px sans-serif`; c.textAlign = "center";
+            lines.forEach((ln, i) => c.fillText(ln, W / 2, H * 0.12 + 22 * k2 + i * 20 * k2));
+        }
         // progress bar (all horses)
         const by = H - 16;
         c.fillStyle = "rgba(0,0,0,0.55)"; c.fillRect(0, by - 8, W, 24);
@@ -387,10 +395,11 @@
         let runners, has = !!replay;
         if (has) runners = replay.runners; else runners = race.horses.map(h => ({ horse_number: h.horse_number, horse_name: h.horse_name, frame: null, finish: null, time_s: null, last3f_s: null }));
         S = buildState(course, runners, race, has);
+        S.msg = msg;
         S.speed = parseFloat(($("select-replay-speed") || { value: "2" }).value);
         setNote(has ? `${replay.notes[0]}${course.note ? " " + course.note : ""}` : `${msg} （コースの形と出走馬のみ表示します）${course.note ? " " + course.note : ""}`, !has);
         const b = $("btn-start-sim"), r2 = $("btn-reset-sim"); if (b) b.disabled = !has; if (r2) r2.disabled = !has;
-        const say = $("broadcast-commentary-text"); if (say) say.textContent = has ? "再生ボタンでレースが始まります。" : "このレースには、リプレイに使える結果データがありません。";
+        const say = $("broadcast-commentary-text"); if (say) say.textContent = has ? "再生ボタンでレースが始まります。" : `リプレイできません: ${msg}`;
         step(0, true); S.camD = (S.order[0].d); draw(); setButton();
         raf = requestAnimationFrame(frame);
     }
