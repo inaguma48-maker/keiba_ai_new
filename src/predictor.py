@@ -1,6 +1,6 @@
 """
 Machine Learning Prediction Engine for Horse Racing Prediction.
-Trains LightGBM / RandomForest models and calculates win/place probabilities.
+Trains LightGBM / RandomForest models and calculates win/place probabilities with High-Volatility (荒れ度) analysis.
 """
 
 import os
@@ -39,11 +39,13 @@ class HorseRacePredictor:
         y_win = df["is_win"]
         y_place = df["is_place"]
 
-        # Win Model: LightGBM
+        # Win Model: LightGBM tuned for high discrimination power
         self.win_model = LGBMClassifier(
-            n_estimators=100,
-            learning_rate=0.05,
-            num_leaves=15,
+            n_estimators=150,
+            learning_rate=0.04,
+            num_leaves=20,
+            subsample=0.8,
+            colsample_bytree=0.8,
             random_state=42,
             verbosity=-1
         )
@@ -51,8 +53,8 @@ class HorseRacePredictor:
 
         # Place Model: RandomForest for smooth place probability
         self.place_model = RandomForestClassifier(
-            n_estimators=100,
-            max_depth=6,
+            n_estimators=120,
+            max_depth=7,
             random_state=42
         )
         self.place_model.fit(X, y_place)
@@ -82,16 +84,81 @@ class HorseRacePredictor:
                 pass
 
         # If model file does not exist, train on synthetic dataset
-        synth_df = generate_synthetic_historical_data(num_races=250)
+        synth_df = generate_synthetic_historical_data(num_races=300)
         self.train(synth_df)
+
+    def calculate_race_volatility(self, race: RaceInfo) -> Dict[str, Any]:
+        """
+        Analyze race volatility / upset potential (荒れ度 index).
+        High volatility = favorite is vulnerable, dark horses offer high EV for >100% ROI.
+        """
+        if not race.horses:
+            return {"volatility_level": "中平穏", "volatility_score": 50, "is_high_volatility": False, "description": "馬情報なし"}
+
+        odds_list = sorted([h.odds for h in race.horses if h.odds > 0])
+        if not odds_list:
+            return {"volatility_level": "中平穏", "volatility_score": 50, "is_high_volatility": False, "description": "オッズ未確定"}
+
+        top1_odds = odds_list[0]
+        top3_odds = odds_list[:3]
+        total_horses = len(race.horses)
+
+        # Variance/std dev of top odds
+        std_odds = float(np.std(odds_list[:min(8, len(odds_list))]))
+
+        # Volatility Score (0 - 100)
+        # Higher score = more competitive/unpredictable/high-payout race
+        score = 50.0
+
+        if top1_odds >= 4.0:
+            score += 25  # No solid favorite (混戦・大荒れ気配)
+        elif top1_odds >= 3.0:
+            score += 15
+        elif top1_odds <= 1.8:
+            score -= 25  # Super strong favorite (堅い本命)
+
+        if total_horses >= 14:
+            score += 15
+        elif total_horses <= 9:
+            score -= 10
+
+        if std_odds < 3.0:
+            score += 10  # Very tight odds distribution (接戦)
+
+        score = max(5.0, min(95.0, score))
+
+        if score >= 70:
+            level = "超大荒れ警戒 (HIGH ROI TARGET)"
+            desc = "本命馬が脆く、中穴・大穴の頭・ヒモ荒れで高配当が狙える超高回収率ターゲットレース"
+            is_high = True
+        elif score >= 55:
+            level = "波乱含み (UPSET POTENTIAL)"
+            desc = "1番人気と後続の能力差が小さく、期待値(EV)重視の買い目構築で100%超を狙えるレース"
+            is_high = True
+        elif score >= 35:
+            level = "標準・中平穏"
+            desc = "本命と対抗が堅実。軸馬から相手を適度にひねる標準的レース"
+            is_high = False
+        else:
+            level = "本命堅固 (LOW VOLATILITY)"
+            desc = "上位人気の信頼度が高くトリガミ注意。買目を絞って回収率を確保すべきレース"
+            is_high = False
+
+        return {
+            "volatility_level": level,
+            "volatility_score": round(score, 1),
+            "is_high_volatility": is_high,
+            "top1_odds": top1_odds,
+            "description": desc
+        }
 
     def predict_race(self, race: RaceInfo) -> List[Dict[str, Any]]:
         """
         Predict win and place probabilities for each horse in the given race.
-        Returns a list of dicts with horse info, win prob, place prob, and expected score.
+        Includes high-volatility adjustments for ROI optimization.
         """
         if not self.is_trained:
-            synth_df = generate_synthetic_historical_data(num_races=250)
+            synth_df = generate_synthetic_historical_data(num_races=300)
             self.train(synth_df)
 
         df_feats = extract_features(race)
@@ -102,7 +169,7 @@ class HorseRacePredictor:
         # Raw predicted place probabilities
         raw_place_probs = self.place_model.predict_proba(X)[:, 1]
 
-        # Normalize win probabilities to sum to 1.0 (since exactly 1 horse wins)
+        # Normalize win probabilities to sum to 1.0
         sum_win = np.sum(raw_win_probs)
         if sum_win > 0:
             norm_win_probs = raw_win_probs / sum_win
@@ -117,13 +184,31 @@ class HorseRacePredictor:
         else:
             norm_place_probs = np.ones(len(race.horses)) * (target_place_sum / len(race.horses))
 
+        volatility_info = self.calculate_race_volatility(race)
+
         results = []
         for i, h in enumerate(race.horses):
             win_prob = float(norm_win_probs[i])
             place_prob = float(norm_place_probs[i])
 
-            # Expected value multiplier for Win: EV = Prob * Odds
+            # Implied market probability (1 / odds)
+            implied_prob = 1.0 / h.odds if h.odds > 0 else 0.05
+
+            # Expected Value (EV = Win Prob * Odds)
             win_ev = win_prob * h.odds
+
+            # Value edge: Model Prob - Implied Prob
+            value_edge = round(win_prob - implied_prob, 4)
+
+            # Dark Horse / Value Tag determination
+            if win_ev >= 1.15 and h.odds >= 5.0:
+                value_tag = "超高期待値・穴馬 (HIGH ROI)"
+            elif win_ev >= 1.0:
+                value_tag = "高期待値 (POSITIVE EV)"
+            elif win_prob >= 0.25:
+                value_tag = "本命軸 (SOLID FAVORITE)"
+            else:
+                value_tag = "過小評価警戒" if value_edge > 0.02 else "通常"
 
             results.append({
                 "horse_number": h.horse_number,
@@ -133,6 +218,8 @@ class HorseRacePredictor:
                 "win_probability": round(win_prob, 4),
                 "place_probability": round(place_prob, 4),
                 "win_ev": round(win_ev, 3),
+                "value_edge": value_edge,
+                "value_tag": value_tag,
                 "composite_score": round(df_feats.iloc[i]["composite_score"], 1),
                 "past_speed_rating": h.past_speed_rating,
             })

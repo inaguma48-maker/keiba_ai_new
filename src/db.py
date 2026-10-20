@@ -1,5 +1,6 @@
 """
-Database module using SQLite for storing and loading race information and imported racecards.
+Database module using SQLite for storing and loading race information, imported racecards,
+race results feedback, and prediction accuracy tracking.
 """
 
 import sqlite3
@@ -50,6 +51,31 @@ def init_db():
             track_aptitude REAL NOT NULL,
             odds REAL NOT NULL,
             FOREIGN KEY (race_id) REFERENCES races (race_id) ON DELETE CASCADE
+        );
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS race_results (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            race_id TEXT UNIQUE NOT NULL,
+            first_horse_number INTEGER NOT NULL,
+            second_horse_number INTEGER NOT NULL,
+            third_horse_number INTEGER NOT NULL,
+            win_payout REAL NOT NULL,
+            place_payout REAL DEFAULT 0.0,
+            recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (race_id) REFERENCES races (race_id) ON DELETE CASCADE
+        );
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS prediction_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            race_id TEXT NOT NULL,
+            predicted_top_horse INTEGER NOT NULL,
+            predicted_confidence REAL NOT NULL,
+            top_pick_odds REAL NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     """)
 
@@ -135,9 +161,11 @@ def list_all_races() -> List[Dict[str, Any]]:
 
     cursor.execute("""
         SELECT r.race_id, r.race_name, r.track_name, r.surface_type, r.distance, r.track_condition, r.weather, r.created_at,
-               COUNT(h.id) as horse_count
+               COUNT(h.id) as horse_count,
+               res.first_horse_number, res.win_payout
         FROM races r
         LEFT JOIN horses h ON r.race_id = h.race_id
+        LEFT JOIN race_results res ON r.race_id = res.race_id
         GROUP BY r.race_id
         ORDER BY r.created_at DESC
     """)
@@ -155,6 +183,64 @@ def list_all_races() -> List[Dict[str, Any]]:
             "track_condition": row["track_condition"],
             "weather": row["weather"],
             "created_at": str(row["created_at"]),
-            "horse_count": row["horse_count"]
+            "horse_count": row["horse_count"],
+            "has_result": row["first_horse_number"] is not None,
+            "winner_horse_number": row["first_horse_number"],
+            "win_payout": row["win_payout"]
         })
     return result
+
+def save_race_result(race_id: str, first: int, second: int, third: int, win_payout: float, place_payout: float = 0.0) -> None:
+    init_db()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("DELETE FROM race_results WHERE race_id = ?", (race_id,))
+    cursor.execute("""
+        INSERT INTO race_results (race_id, first_horse_number, second_horse_number, third_horse_number, win_payout, place_payout)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (race_id, first, second, third, win_payout, place_payout))
+
+    conn.commit()
+    conn.close()
+
+def get_race_result(race_id: str) -> Optional[Dict[str, Any]]:
+    init_db()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM race_results WHERE race_id = ?", (race_id,))
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row:
+        return None
+    return dict(row)
+
+def save_prediction_log(race_id: str, top_horse: int, confidence: float, top_odds: float) -> None:
+    init_db()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        INSERT INTO prediction_logs (race_id, predicted_top_horse, predicted_confidence, top_pick_odds)
+        VALUES (?, ?, ?, ?)
+    """, (race_id, top_horse, confidence, top_odds))
+
+    conn.commit()
+    conn.close()
+
+def get_all_completed_races() -> List[Dict[str, Any]]:
+    init_db()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT r.race_id, res.first_horse_number, res.second_horse_number, res.third_horse_number, res.win_payout, res.place_payout
+        FROM races r
+        INNER JOIN race_results res ON r.race_id = res.race_id
+    """)
+    rows = cursor.fetchall()
+    conn.close()
+
+    return [dict(r) for r in rows]

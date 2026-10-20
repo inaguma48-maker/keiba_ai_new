@@ -1,5 +1,5 @@
 """
-Flask API Web Application for Horse Racing AI Prediction System.
+Flask API Web Application for Horse Racing AI Prediction System with Self-Growing Feedback Loop.
 """
 
 import os
@@ -14,10 +14,12 @@ from src.data import get_sample_races, generate_synthetic_historical_data
 from src.predictor import HorseRacePredictor
 from src.strategy import calculate_betting_recommendations
 from src.jra_importer import parse_jra_text, fetch_and_parse_jra_url, auto_detect_jra_races
-from src.db import init_db, save_race, get_race_by_id, list_all_races
+from src.db import init_db, save_race, get_race_by_id, list_all_races, get_race_result
+from src.feedback_loop import SelfLearningEngine
 
 app = Flask(__name__)
 predictor = HorseRacePredictor()
+learning_engine = SelfLearningEngine(predictor)
 
 # Initialize Database
 init_db()
@@ -47,7 +49,20 @@ def get_race_detail(race_id: str):
         race = sample_races_cache.get(race_id)
     if not race:
         return jsonify({"status": "error", "message": "Race not found"}), 404
-    return jsonify({"status": "success", "race": race.to_dict()})
+
+    predictions = predictor.predict_race(race)
+    volatility = predictor.calculate_race_volatility(race)
+    recommendations = calculate_betting_recommendations(predictions, volatility)
+    result = get_race_result(race.race_id)
+
+    return jsonify({
+        "status": "success",
+        "race": race.to_dict(),
+        "predictions": predictions,
+        "volatility": volatility,
+        "recommendations": recommendations,
+        "result": result
+    })
 
 @app.route("/api/auto_fetch_jra", methods=["POST"])
 def auto_fetch_jra():
@@ -60,10 +75,12 @@ def auto_fetch_jra():
         for race in races:
             save_race(race)
             preds = predictor.predict_race(race)
-            recs = calculate_betting_recommendations(preds)
+            vol = predictor.calculate_race_volatility(race)
+            recs = calculate_betting_recommendations(preds, vol)
             processed_results.append({
                 "race": race.to_dict(),
                 "predictions": preds,
+                "volatility": vol,
                 "recommendations": recs
             })
 
@@ -94,13 +111,15 @@ def import_jra():
         save_race(race)
 
         predictions = predictor.predict_race(race)
-        recommendations = calculate_betting_recommendations(predictions)
+        volatility = predictor.calculate_race_volatility(race)
+        recommendations = calculate_betting_recommendations(predictions, volatility)
 
         return jsonify({
             "status": "success",
             "message": "JRA出馬表を取り込み、データベースに保存しました。",
             "race": race.to_dict(),
             "predictions": predictions,
+            "volatility": volatility,
             "recommendations": recommendations
         })
     except Exception as e:
@@ -146,24 +165,76 @@ def predict_race():
         save_race(race)
 
         predictions = predictor.predict_race(race)
-        recommendations = calculate_betting_recommendations(predictions)
+        volatility = predictor.calculate_race_volatility(race)
+        recommendations = calculate_betting_recommendations(predictions, volatility)
 
         return jsonify({
             "status": "success",
             "race": race.to_dict(),
             "predictions": predictions,
+            "volatility": volatility,
             "recommendations": recommendations
         })
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-@app.route("/api/train", methods=["POST"])
-def retrain_model():
+# API Feedback & Self-Learning Endpoints
+
+@app.route("/api/feedback/record_result", methods=["POST"])
+def record_race_result():
+    """
+    Record actual race results (1st, 2nd, 3rd place, payout) and feed into self-learning loop.
+    """
+    data = request.get_json() or {}
+    race_id = data.get("race_id")
+    first = data.get("first_horse_number")
+    second = data.get("second_horse_number")
+    third = data.get("third_horse_number")
+    win_payout = data.get("win_payout")
+    place_payout = data.get("place_payout", 0.0)
+
+    if not race_id or first is None or win_payout is None:
+        return jsonify({"status": "error", "message": "race_id, first_horse_number, and win_payout are required"}), 400
+
     try:
-        synth_df = generate_synthetic_historical_data(num_races=300)
-        predictor.train(synth_df)
-        return jsonify({"status": "success", "message": f"AI Precision Model retrained successfully on {len(synth_df)} data points."})
+        res = learning_engine.record_result_and_learn(
+            race_id=str(race_id),
+            first_horse_number=int(first),
+            second_horse_number=int(second) if second is not None else 0,
+            third_horse_number=int(third) if third is not None else 0,
+            win_payout=float(win_payout),
+            place_payout=float(place_payout)
+        )
+        return jsonify(res)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route("/api/feedback/stats", methods=["GET"])
+def get_feedback_stats():
+    """
+    Get ROI %, hit rate %, and self-learning feedback loop generation.
+    """
+    try:
+        stats = learning_engine.calculate_performance_stats()
+        return jsonify({"status": "success", "stats": stats})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route("/api/feedback/retrain", methods=["POST"])
+def force_retrain():
+    """
+    Trigger manual self-learning retrain cycle with historical and feedback data.
+    """
+    try:
+        res = learning_engine.retrain_from_feedback()
+        stats = learning_engine.calculate_performance_stats()
+        return jsonify({
+            "status": "success",
+            "message": "AI自己学習モデルを再トレーニングし、モデルパラメータを更新しました。",
+            "retrain_summary": res,
+            "performance_stats": stats
+        })
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 

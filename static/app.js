@@ -8,12 +8,29 @@ document.addEventListener("DOMContentLoaded", () => {
     const formAddHorse = document.getElementById("form-add-horse");
     const formImportJra = document.getElementById("form-import-jra");
     const btnAutoDetectJra = document.getElementById("btn-auto-detect-jra");
+    const formRecordResult = document.getElementById("form-record-result");
 
     const displayRaceName = document.getElementById("display-race-name");
     const displayRaceMeta = document.getElementById("display-race-meta");
     const confidenceContainer = document.getElementById("confidence-container");
     const displayConfidence = document.getElementById("display-confidence");
     const tbodyPredictions = document.getElementById("tbody-predictions");
+
+    // Dashboard Elements
+    const dashRecoveryRate = document.getElementById("dashboard-recovery-rate");
+    const dashRoiStatus = document.getElementById("dashboard-roi-status");
+    const dashWinHit = document.getElementById("dashboard-win-hit");
+    const dashPlaceHit = document.getElementById("dashboard-place-hit");
+    const dashTotalRaces = document.getElementById("dashboard-total-races");
+    const dashNetPayout = document.getElementById("dashboard-net-payout");
+    const dashTotalStake = document.getElementById("dashboard-total-stake");
+    const navGenBadge = document.getElementById("nav-gen-badge");
+
+    // Volatility Card Elements
+    const volatilityCard = document.getElementById("volatility-card");
+    const badgeVolatilityLevel = document.getElementById("badge-volatility-level");
+    const volatilityScoreText = document.getElementById("volatility-score-text");
+    const volatilityDescText = document.getElementById("volatility-desc-text");
 
     // Canvas Simulation & Broadcast TV Elements
     const canvas = document.getElementById("raceCanvas");
@@ -35,8 +52,34 @@ document.addEventListener("DOMContentLoaded", () => {
     let simRunning = false;
     let simPredictions = [];
 
-    // Load available races (including DB saved races) on start
+    // Load available races and performance stats on start
     loadRaces();
+    fetchPerformanceStats();
+
+    async function fetchPerformanceStats() {
+        try {
+            const res = await fetch("/api/feedback/stats");
+            const data = await res.json();
+            if (data.status === "success" && data.stats) {
+                const s = data.stats;
+                if (dashRecoveryRate) dashRecoveryRate.textContent = `${s.recovery_rate}%`;
+                if (dashRoiStatus) dashRoiStatus.textContent = s.roi_status;
+                if (dashWinHit) dashWinHit.textContent = `${s.win_hit_rate}%`;
+                if (dashPlaceHit) dashPlaceHit.textContent = `${s.place_hit_rate}%`;
+                if (dashTotalRaces) dashTotalRaces.textContent = s.total_races;
+                if (dashTotalStake) dashTotalStake.textContent = s.total_stake.toLocaleString();
+
+                const net = s.total_payout - s.total_stake;
+                if (dashNetPayout) {
+                    dashNetPayout.textContent = (net >= 0 ? "+" : "") + net.toLocaleString() + " 円";
+                    dashNetPayout.className = "fs-4 fw-bold mt-1 " + (net >= 0 ? "text-success" : "text-danger");
+                }
+                if (navGenBadge) navGenBadge.textContent = `AI世代: Gen ${s.generation}`;
+            }
+        } catch (err) {
+            console.error("Failed to fetch performance stats:", err);
+        }
+    }
 
     function updateTrackProfileUI(race) {
         const profile = race.track_profile || {
@@ -57,6 +100,22 @@ document.addEventListener("DOMContentLoaded", () => {
         drawTrackCanvas(race, 0);
     }
 
+    function updateVolatilityUI(vol) {
+        if (!vol || !volatilityCard) return;
+
+        volatilityCard.classList.remove("d-none");
+        if (badgeVolatilityLevel) {
+            badgeVolatilityLevel.textContent = `荒れ度: ${vol.volatility_level}`;
+            if (vol.is_high_volatility) {
+                badgeVolatilityLevel.className = "badge bg-danger text-white fs-6 px-3 py-2 fw-bold animate-pulse";
+            } else {
+                badgeVolatilityLevel.className = "badge bg-warning text-dark fs-6 px-3 py-2 fw-bold";
+            }
+        }
+        if (volatilityScoreText) volatilityScoreText.textContent = `荒れ度スコア: ${vol.volatility_score}/100`;
+        if (volatilityDescText) volatilityDescText.textContent = vol.description;
+    }
+
     function drawTrackCanvas(race, progress = 0) {
         if (!ctx || !canvas) return;
         const width = canvas.width;
@@ -65,33 +124,20 @@ document.addEventListener("DOMContentLoaded", () => {
         ctx.clearRect(0, 0, width, height);
 
         const surface = race ? race.surface_type : "芝";
-        const trackName = race ? race.track_name : "東京";
         const profile = race ? race.track_profile : null;
         const isObstacle = surface === "障害";
         const isDirt = surface === "ダート";
 
-        // Realistic Ground / Infield Environment Textures
+        // Environment Background
         const gradBg = ctx.createRadialGradient(width/2, height/2, 50, width/2, height/2, width/2);
         gradBg.addColorStop(0, "#1b2e2b");
         gradBg.addColorStop(1, "#0d1b1a");
         ctx.fillStyle = gradBg;
         ctx.fillRect(0, 0, width, height);
 
-        // Multi-lane Course Colors
-        let turfMain = "#1e532b";
-        let turfSub = "#2e7d32";
-        let dirtMain = "#6d4c41";
-        let obstacleMain = "#0d47a1";
+        let turfMain = isDirt ? "#5d4037" : (isObstacle ? "#1565c0" : "#1e532b");
 
-        if (isDirt) {
-            turfMain = "#5d4037";
-            turfSub = "#8d6e63";
-        } else if (isObstacle) {
-            turfMain = "#1565c0";
-            turfSub = "#1976d2";
-        }
-
-        // Outer Main Turf/Dirt Track Polygon / Oval
+        // Outer Main Turf/Dirt Track Oval
         ctx.lineWidth = isObstacle ? 42 : 34;
         ctx.strokeStyle = turfMain;
         ctx.lineJoin = "round";
@@ -99,14 +145,14 @@ document.addEventListener("DOMContentLoaded", () => {
         ctx.roundRect(60, 45, width - 120, height - 100, [90]);
         ctx.stroke();
 
-        // Multi-lane Markings (Inner Lane)
+        // Multi-lane Inner Line
         ctx.lineWidth = 16;
         ctx.strokeStyle = isDirt ? "#8d6e63" : "#2a6f3b";
         ctx.beginPath();
         ctx.roundRect(75, 60, width - 150, height - 130, [75]);
         ctx.stroke();
 
-        // White Fence Outer/Inner Barriers
+        // White Fence Barriers
         ctx.lineWidth = 2;
         ctx.strokeStyle = "#ffffff";
         ctx.beginPath();
@@ -114,7 +160,7 @@ document.addEventListener("DOMContentLoaded", () => {
         ctx.roundRect(92, 77, width - 184, height - 164, [60]);
         ctx.stroke();
 
-        // Checkered Finish Line & Pole
+        // Checkered Finish Line
         const finishX = 230;
         const finishYTop = height - 92;
         const finishYBot = height - 26;
@@ -133,14 +179,14 @@ document.addEventListener("DOMContentLoaded", () => {
         ctx.moveTo(finishX, finishYTop);
         ctx.lineTo(finishX, finishYBot);
         ctx.stroke();
-        ctx.setLineDash([]); // reset
+        ctx.setLineDash([]);
 
         ctx.fillStyle = "#ffeb3b";
         ctx.font = "bold 12px sans-serif";
         ctx.textAlign = "center";
         ctx.fillText("🏁 FINISH", finishX, finishYTop - 10);
 
-        // Authentic Starting Gate (発走ゲート)
+        // Starting Gate
         const gateX = width - 180;
         const gateY = height - 72;
         ctx.fillStyle = "#37474f";
@@ -152,7 +198,7 @@ document.addEventListener("DOMContentLoaded", () => {
         ctx.font = "bold 10px sans-serif";
         ctx.fillText("START ゲート", gateX, gateY + 4);
 
-        // Elevation / Rise Steep Slope Overlay (つくし坂・急坂)
+        // Slope Overlay
         if (profile && profile.has_slope) {
             const slopeX = 290;
             const slopeY = height - 60;
@@ -175,28 +221,6 @@ document.addEventListener("DOMContentLoaded", () => {
             ctx.fillText("▲ 直線急坂 (高低差 " + profile.max_slope_m + "m)", slopeX + 10, slopeY + 28);
         }
 
-        // Steeplechase Jump Fences for Obstacle Races (生垣・バンケット・大竹柵)
-        if (isObstacle) {
-            const jumpPositions = [
-                { x: 190, y: 45, label: "大生垣" },
-                { x: 520, y: 45, label: "水濠" },
-                { x: 690, y: 190, label: "バンケット" },
-                { x: 420, y: height - 60, label: "大竹柵" }
-            ];
-            jumpPositions.forEach(j => {
-                ctx.fillStyle = "#e65100";
-                ctx.fillRect(j.x - 16, j.y - 14, 32, 28);
-                ctx.strokeStyle = "#ffeb3b";
-                ctx.lineWidth = 2;
-                ctx.strokeRect(j.x - 16, j.y - 14, 32, 28);
-                ctx.fillStyle = "#ffffff";
-                ctx.font = "bold 10px sans-serif";
-                ctx.textAlign = "center";
-                ctx.fillText(j.label, j.x, j.y + 4);
-            });
-        }
-
-        // Draw Realistic Video-Like Galloping Horses with High-Precision Thoroughbred Sprites, Camera Zoom & Broadcast HUD
         const horses = (simPredictions && simPredictions.length > 0)
             ? simPredictions
             : (race ? race.horses : []);
@@ -207,7 +231,6 @@ document.addEventListener("DOMContentLoaded", () => {
         const isLeftTurn = profile ? profile.is_left_turn : false;
         const nowSec = Date.now() / 1000.0;
 
-        // Calculate positions of all horses
         const horseStates = horses.map((h, idx) => {
             const speedFactor = h.win_probability ? (0.85 + h.win_probability * 0.5) : 1.0;
             const horseProgress = Math.min(1.0, progress * speedFactor);
@@ -217,11 +240,9 @@ document.addEventListener("DOMContentLoaded", () => {
             return { h, idx, horseProgress, pos, moveAngle };
         });
 
-        // Find current leader
         horseStates.sort((a, b) => b.horseProgress - a.horseProgress);
         const leader = horseStates[0];
 
-        // Dynamic Broadcast Camera Pan & Zoom Matrix
         const camMode = selectCamMode ? selectCamMode.value : "overview";
         ctx.save();
 
@@ -235,21 +256,14 @@ document.addEventListener("DOMContentLoaded", () => {
             ctx.translate(-finishX - 30, -finishYBot + 40);
         }
 
-        // Draw Horses in order from background to foreground
         horseStates.reverse().forEach(({ h, idx, horseProgress, pos, moveAngle }) => {
-            // Galloping Gait Kinematics (サラブレッド走法のアニメーション)
             const gallopPhase = (nowSec * 16.0 + idx * 0.8) % (Math.PI * 2);
             const verticalBob = Math.sin(gallopPhase) * 4.0;
             const legExtendFront = Math.cos(gallopPhase) * 14.0;
             const legExtendRear = Math.sin(gallopPhase + 0.4) * 14.0;
 
-            const silksColors = [
-                "#d32f2f", "#1976d2", "#388e3c", "#fbc02d",
-                "#7b1fa2", "#e65100", "#00838f", "#4e342e"
-            ];
+            const silksColors = ["#d32f2f", "#1976d2", "#388e3c", "#fbc02d", "#7b1fa2", "#e65100", "#00838f", "#4e342e"];
             const silkColor = silksColors[idx % silksColors.length];
-
-            // Horse Body Coat Color Varieties (栗毛、鹿毛、青毛、芦毛)
             const coatColors = ["#3e2723", "#4e342e", "#212121", "#757575", "#5d4037"];
             const coatColor = coatColors[idx % coatColors.length];
 
@@ -257,7 +271,6 @@ document.addEventListener("DOMContentLoaded", () => {
             ctx.translate(pos.x, pos.y + verticalBob);
             ctx.rotate(moveAngle);
 
-            // Turf Kickup Particle Physics
             if (simRunning) {
                 ctx.fillStyle = isDirt ? "rgba(141, 110, 99, 0.7)" : "rgba(76, 175, 80, 0.7)";
                 for (let p = 0; p < 4; p++) {
@@ -269,8 +282,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
             }
 
-            // High-Detail Muscle Shaded Horse Body & Limbs
-            // Rear Hooves & Legs
+            // Legs
             ctx.lineWidth = 3.0;
             ctx.strokeStyle = coatColor;
             ctx.beginPath();
@@ -281,7 +293,6 @@ document.addEventListener("DOMContentLoaded", () => {
             ctx.lineTo(-12 + legExtendRear * 0.7, 14);
             ctx.stroke();
 
-            // Front Hooves & Legs
             ctx.beginPath();
             ctx.moveTo(10, 3);
             ctx.lineTo(12 + legExtendFront, 13);
@@ -290,25 +301,24 @@ document.addEventListener("DOMContentLoaded", () => {
             ctx.lineTo(6 - legExtendFront * 0.7, 14);
             ctx.stroke();
 
-            // Muscular Horse Torso (馬体胴部)
+            // Torso
             ctx.fillStyle = coatColor;
             ctx.beginPath();
             ctx.ellipse(0, 0, 18, 9, 0, 0, Math.PI * 2);
             ctx.fill();
 
-            // Saddle Cloth (鞍とゼッケン)
+            // Saddle Cloth
             ctx.fillStyle = silkColor;
             ctx.fillRect(-6, -8, 12, 10);
             ctx.strokeStyle = "#ffffff";
             ctx.lineWidth = 1;
             ctx.strokeRect(-6, -8, 12, 10);
 
-            // Neck & Dynamic Head Movement
+            // Neck & Head
             const neckAngle = -0.3 + Math.sin(gallopPhase) * 0.1;
             ctx.save();
             ctx.translate(12, -4);
             ctx.rotate(neckAngle);
-
             ctx.fillStyle = coatColor;
             ctx.beginPath();
             ctx.moveTo(0, 0);
@@ -318,27 +328,14 @@ document.addEventListener("DOMContentLoaded", () => {
             ctx.lineTo(4, 5);
             ctx.closePath();
             ctx.fill();
+            ctx.restore();
 
-            // Horse Snout & Ears
-            ctx.beginPath();
-            ctx.arc(17, -7, 3, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.moveTo(8, -12);
-            ctx.lineTo(10, -16);
-            ctx.lineTo(11, -11);
-            ctx.closePath();
-            ctx.fill();
-
-            ctx.restore(); // end neck
-
-            // Jockey Silks & Posture
+            // Jockey
             ctx.fillStyle = silkColor;
             ctx.beginPath();
             ctx.ellipse(-2, -10, 6, 5, -0.4, 0, Math.PI * 2);
             ctx.fill();
 
-            // Jockey Helmet
             ctx.fillStyle = "#ffeb3b";
             ctx.beginPath();
             ctx.arc(-2, -15, 3.5, 0, Math.PI * 2);
@@ -346,10 +343,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
             ctx.restore();
 
-            // Overhead Horse Saddle Number Badge & Name Box
+            // Overhead Number Badge
             ctx.save();
             ctx.translate(pos.x, pos.y - 28);
-
             ctx.fillStyle = silkColor;
             ctx.beginPath();
             ctx.arc(0, 0, 10, 0, Math.PI * 2);
@@ -364,7 +360,6 @@ document.addEventListener("DOMContentLoaded", () => {
             ctx.textBaseline = "middle";
             ctx.fillText(h.horse_number, 0, 0);
 
-            // Horse Name Tag with Glassmorphic Badge
             ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
             ctx.fillRect(-28, -20, 56, 13);
             ctx.strokeStyle = "rgba(255,255,255,0.4)";
@@ -377,9 +372,8 @@ document.addEventListener("DOMContentLoaded", () => {
             ctx.restore();
         });
 
-        ctx.restore(); // end camera transformation
+        ctx.restore();
 
-        // Live Broadcast TV HUD Leaderboard Bar (画面上部 Live 実況テロップ)
         if (simRunning && leader) {
             ctx.fillStyle = "rgba(10, 10, 10, 0.85)";
             ctx.fillRect(15, 15, 300, 32);
@@ -399,18 +393,16 @@ document.addEventListener("DOMContentLoaded", () => {
         const ry = (height - 120) / 2;
         const cx = width / 2;
         const cy = height / 2;
-
         const laneOffset = (laneIdx - totalLanes / 2) * 3.2;
 
-        // Counter-clockwise vs Clockwise directional angle mapping
         let angle = isLeftTurn
             ? (Math.PI * 2 * t + Math.PI / 2)
             : (Math.PI * 2 * (1.0 - t) + Math.PI / 2);
 
-        const x = cx + (rx + laneOffset) * Math.cos(angle);
-        const y = cy + (ry + laneOffset) * Math.sin(angle);
-
-        return { x, y };
+        return {
+            x: cx + (rx + laneOffset) * Math.cos(angle),
+            y: cy + (ry + laneOffset) * Math.sin(angle)
+        };
     }
 
     if (btnStartSim) {
@@ -427,21 +419,13 @@ document.addEventListener("DOMContentLoaded", () => {
                 const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(1);
                 if (simLiveTime) simLiveTime.textContent = `${elapsedSec}秒`;
 
-                // Real-time Japanese Broadcast Commentary Generator
                 if (commentaryText) {
-                    if (simProgress < 0.1) {
-                        commentaryText.textContent = "ゲートが一斉に開いた！綺麗なスタートを切りました！";
-                    } else if (simProgress < 0.35) {
-                        commentaryText.textContent = "各馬向正面へと差し掛かります。激しい先行争いが続いています！";
-                    } else if (simProgress < 0.65) {
-                        commentaryText.textContent = "レースは第3コーナーから第4コーナーへ！先頭馬が手応え良く後続を引き離します！";
-                    } else if (simProgress < 0.88) {
-                        commentaryText.textContent = "さあ最終直線だ！坂を駆け上がる！外からAI本命馬が猛烈な追い上げ！";
-                    } else if (simProgress < 1.0) {
-                        commentaryText.textContent = "大歓声の中、ゴール板前接戦！激しい追い比べ！";
-                    } else {
-                        commentaryText.textContent = "各馬ゴールイン！見事な一戦となりました！";
-                    }
+                    if (simProgress < 0.1) commentaryText.textContent = "ゲートが一斉に開いた！綺麗なスタートを切りました！";
+                    else if (simProgress < 0.35) commentaryText.textContent = "各馬向正面へと差し掛かります。激しい先行争いが続いています！";
+                    else if (simProgress < 0.65) commentaryText.textContent = "レースは第3コーナーから第4コーナーへ！手応え良く後続を引き離します！";
+                    else if (simProgress < 0.88) commentaryText.textContent = "さあ最終直線だ！坂を駆け上がる！外からAI本命馬が猛烈な追い上げ！";
+                    else if (simProgress < 1.0) commentaryText.textContent = "大歓声の中、ゴール板前接戦！激しい追い比べ！";
+                    else commentaryText.textContent = "各馬ゴールイン！見事な一戦となりました！";
                 }
 
                 drawTrackCanvas(currentRace, simProgress);
@@ -503,7 +487,18 @@ document.addEventListener("DOMContentLoaded", () => {
             const data = await res.json();
             if (data.status === "success") {
                 currentRace = data.race;
-                await runPrediction(currentRace);
+                simPredictions = data.predictions;
+                document.getElementById("result-race-id").value = currentRace.race_id;
+
+                updateTrackProfileUI(currentRace);
+                updateVolatilityUI(data.volatility);
+                renderPredictions(data.predictions);
+                renderRecommendations(data.recommendations);
+
+                displayRaceName.textContent = currentRace.race_name;
+                displayRaceMeta.textContent = `${currentRace.track_name}競馬場 | ${currentRace.surface_type}${currentRace.distance}m | 馬場: ${currentRace.track_condition} | 天候: ${currentRace.weather}`;
+                confidenceContainer.classList.remove("d-none");
+                displayConfidence.textContent = `${data.recommendations.confidence_score}%`;
             }
         } catch (err) {
             alert("レース情報の取得に失敗しました。");
@@ -516,7 +511,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    // One-Click JRA Auto Detection Event Listener
     if (btnAutoDetectJra) {
         btnAutoDetectJra.addEventListener("click", async () => {
             tbodyPredictions.innerHTML = '<tr><td colspan="6" class="text-center py-4"><div class="spinner-border text-warning" role="status"></div><div class="mt-2 text-dark fw-bold">JRA公式最新レース・オッズを自動検出中...</div></td></tr>';
@@ -528,8 +522,14 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (result.status === "success" && result.results && result.results.length > 0) {
                     const firstResult = result.results[0];
                     currentRace = firstResult.race;
+                    simPredictions = firstResult.predictions;
+                    document.getElementById("result-race-id").value = currentRace.race_id;
+
                     displayRaceName.textContent = firstResult.race.race_name;
                     displayRaceMeta.textContent = `${firstResult.race.track_name}競馬場 | ${firstResult.race.surface_type}${firstResult.race.distance}m | 馬場: ${firstResult.race.track_condition} | 天候: ${firstResult.race.weather} (自動検出完了)`;
+
+                    updateTrackProfileUI(firstResult.race);
+                    updateVolatilityUI(firstResult.volatility);
                     renderPredictions(firstResult.predictions);
                     renderRecommendations(firstResult.recommendations);
 
@@ -549,7 +549,6 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // JRA Racecard Import Form Submit
     formImportJra.addEventListener("submit", async (e) => {
         e.preventDefault();
         const urlInput = document.getElementById("input-jra-url").value.trim();
@@ -575,10 +574,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
             if (result.status === "success" && result.race) {
                 currentRace = result.race;
+                simPredictions = result.predictions;
+                document.getElementById("result-race-id").value = currentRace.race_id;
+
                 displayRaceName.textContent = result.race.race_name;
                 displayRaceMeta.textContent = `${result.race.track_name}競馬場 | ${result.race.surface_type}${result.race.distance}m | 馬場: ${result.race.track_condition} | 天候: ${result.race.weather} (DB保管完了)`;
 
                 updateTrackProfileUI(result.race);
+                updateVolatilityUI(result.volatility);
                 renderPredictions(result.predictions);
                 renderRecommendations(result.recommendations);
 
@@ -586,7 +589,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 displayConfidence.textContent = `${result.recommendations.confidence_score}%`;
                 btnRecalculate.classList.remove("d-none");
 
-                // Refresh race selection dropdown with newly saved DB race
                 await loadRaces(result.race.race_id);
             } else {
                 alert("JRA取り込みエラー: " + (result.message || "取り込みに失敗しました"));
@@ -600,6 +602,7 @@ document.addEventListener("DOMContentLoaded", () => {
     async function runPrediction(raceData) {
         displayRaceName.textContent = raceData.race_name;
         displayRaceMeta.textContent = `${raceData.track_name}競馬場 | ${raceData.surface_type}${raceData.distance}m | 馬場: ${raceData.track_condition} | 天候: ${raceData.weather}`;
+        document.getElementById("result-race-id").value = raceData.race_id;
 
         tbodyPredictions.innerHTML = '<tr><td colspan="6" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-muted">AI 思考解析中...</div></td></tr>';
 
@@ -612,7 +615,9 @@ document.addEventListener("DOMContentLoaded", () => {
             const result = await res.json();
 
             if (result.status === "success") {
+                simPredictions = result.predictions;
                 updateTrackProfileUI(raceData);
+                updateVolatilityUI(result.volatility);
                 renderPredictions(result.predictions);
                 renderRecommendations(result.recommendations);
 
@@ -620,7 +625,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 displayConfidence.textContent = `${result.recommendations.confidence_score}%`;
                 btnRecalculate.classList.remove("d-none");
 
-                // Refresh race list dropdown
                 await loadRaces(raceData.race_id);
             } else {
                 alert("予想の実行に失敗しました: " + result.message);
@@ -641,12 +645,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
             const winPercent = (p.win_probability * 100).toFixed(1);
             const placePercent = (p.place_probability * 100).toFixed(1);
-            const evColor = p.win_ev >= 1.0 ? "bg-danger" : p.win_ev >= 0.85 ? "bg-warning text-dark" : "bg-secondary";
+            const evColor = p.win_ev >= 1.0 ? "bg-danger text-white" : p.win_ev >= 0.85 ? "bg-warning text-dark" : "bg-secondary text-white";
+
+            const tagBadge = p.value_tag ? `<span class="badge ${p.value_tag.includes('HIGH ROI') ? 'bg-danger' : 'bg-dark'} ms-1 small">${p.value_tag}</span>` : '';
 
             tr.innerHTML = `
                 <td class="text-center fw-bold fs-5">${p.horse_number}</td>
                 <td>
-                    <div class="fw-bold">${p.horse_name}</div>
+                    <div class="fw-bold">${p.horse_name}${tagBadge}</div>
                     <div class="text-muted small"><i class="fa-solid fa-user-tie me-1"></i>${p.jockey_name}</div>
                 </td>
                 <td class="text-center fw-bold text-primary">${p.odds} 倍</td>
@@ -677,9 +683,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function renderRecommendations(recs) {
-        // Render Win Tickets
         const winContainer = document.getElementById("container-win-tickets");
-        if (recs.win_tickets.length === 0) {
+        if (!recs.win_tickets || recs.win_tickets.length === 0) {
             winContainer.innerHTML = '<div class="text-muted small p-2">推奨単勝カードなし</div>';
         } else {
             winContainer.innerHTML = recs.win_tickets.map(t => `
@@ -691,13 +696,12 @@ document.addEventListener("DOMContentLoaded", () => {
                         </div>
                         <h5 class="fw-bold mb-1">${t.horse_number}番 ${t.horse_name}</h5>
                         <div class="small text-muted">勝率: ${t.probability}% | オッズ: ${t.odds}倍</div>
-                        <div class="mt-2 text-end text-primary fw-bold small">推奨資金配分: ${t.recommended_stake_percent}%</div>
+                        <div class="mt-2 text-end text-primary fw-bold small">推奨資金配分 (Kelly): ${t.recommended_stake_percent}%</div>
                     </div>
                 </div>
             `).join("");
         }
 
-        // Render Place Tickets
         const placeContainer = document.getElementById("container-place-tickets");
         placeContainer.innerHTML = recs.place_tickets.map(t => `
             <div class="col-md-6">
@@ -707,12 +711,11 @@ document.addEventListener("DOMContentLoaded", () => {
                         <span class="fw-bold text-dark">複勝率 ${t.place_probability}%</span>
                     </div>
                     <h5 class="fw-bold mb-1">${t.horse_number}番 ${t.horse_name}</h5>
-                    <div class="small text-muted">単勝オッズ: ${t.odds}倍</div>
+                    <div class="small text-muted">単勝オッズ: ${t.odds}倍 | 想定複勝オッズ: ${t.est_place_odds}倍 (EV: ${t.place_ev})</div>
                 </div>
             </div>
         `).join("");
 
-        // Render Exacta Tickets
         const exactaContainer = document.getElementById("container-exacta-tickets");
         exactaContainer.innerHTML = recs.exacta_tickets.map(t => `
             <div class="col-md-6">
@@ -727,13 +730,12 @@ document.addEventListener("DOMContentLoaded", () => {
             </div>
         `).join("");
 
-        // Render Trio Tickets
         const trioContainer = document.getElementById("container-trio-tickets");
         trioContainer.innerHTML = recs.trio_tickets.map(t => `
             <div class="col-md-6">
                 <div class="card ticket-card p-3">
                     <div class="d-flex justify-content-between align-items-center mb-1">
-                        <span class="badge bg-warning text-dark">3連複 (1軸流し)</span>
+                        <span class="badge bg-warning text-dark">3連複 (軸1頭流し)</span>
                         <span class="fw-bold text-success">想定オッズ ${t.estimated_odds}倍</span>
                     </div>
                     <h5 class="fw-bold mb-1">${t.combination}</h5>
@@ -744,7 +746,47 @@ document.addEventListener("DOMContentLoaded", () => {
         `).join("");
     }
 
-    // Add Custom Horse
+    // Race Result Feedback Form Submit
+    if (formRecordResult) {
+        formRecordResult.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const raceId = document.getElementById("result-race-id").value;
+            const first = parseInt(document.getElementById("result-1st").value);
+            const second = parseInt(document.getElementById("result-2nd").value);
+            const third = parseInt(document.getElementById("result-3rd").value);
+            const winPayout = parseFloat(document.getElementById("result-win-payout").value);
+            const placePayout = parseFloat(document.getElementById("result-place-payout").value);
+
+            try {
+                const res = await fetch("/api/feedback/record_result", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        race_id: raceId,
+                        first_horse_number: first,
+                        second_horse_number: second,
+                        third_horse_number: third,
+                        win_payout: winPayout,
+                        place_payout: placePayout
+                    })
+                });
+                const result = await res.json();
+                if (result.status === "success") {
+                    alert(result.message);
+                    const modalEl = document.getElementById("resultModal");
+                    const modal = bootstrap.Modal.getInstance(modalEl);
+                    if (modal) modal.hide();
+                    fetchPerformanceStats();
+                } else {
+                    alert("結果記録エラー: " + result.message);
+                }
+            } catch (err) {
+                console.error(err);
+                alert("通信エラーが発生しました。");
+            }
+        });
+    }
+
     formAddHorse.addEventListener("submit", (e) => {
         e.preventDefault();
         if (!currentRace) {
@@ -785,20 +827,20 @@ document.addEventListener("DOMContentLoaded", () => {
         runPrediction(currentRace);
     });
 
-    // Retrain Model
     btnRetrain.addEventListener("click", async () => {
         btnRetrain.disabled = true;
-        btnRetrain.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> 学習中...';
+        btnRetrain.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> 自己学習中...';
         try {
-            const res = await fetch("/api/train", { method: "POST" });
+            const res = await fetch("/api/feedback/retrain", { method: "POST" });
             const data = await res.json();
             alert(data.message);
+            fetchPerformanceStats();
             if (currentRace) runPrediction(currentRace);
         } catch (err) {
-            alert("モデル再学習に失敗しました。");
+            alert("自己学習に失敗しました。");
         } finally {
             btnRetrain.disabled = false;
-            btnRetrain.innerHTML = '<i class="fa-solid fa-arrows-rotate me-1"></i> AIモデル再学習';
+            btnRetrain.innerHTML = '<i class="fa-solid fa-arrows-rotate me-1"></i> 自己学習リトライ';
         }
     });
 });
