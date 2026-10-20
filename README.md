@@ -46,7 +46,8 @@ python3 app.py
 `tools\install_autostart.bat` をダブルクリックします（Pythonが入っていること）。
 - アプリを `%USERPROFILE%\keiba_app` にコピーし、Windowsにログインするたびに裏で自動起動します（画面は出ません）。
 - デスクトップに `keiba-viewer`（`http://localhost:5000` へのショートカット）が作られます。
-- 更新したいときは、新しいZIPを解凍して、同じバッチをもう一度実行します（保存済みのレースは残ります）。
+- 初回は、能力モデルの学習（数分）まで自動で行います（`keiba.db` が `%USERPROFILE%\.keiba\db\` にある場合）。学習済みなら飛ばします。
+- 更新したいときは、新しいZIPを解凍して、同じバッチをもう一度実行します（保存済みのレースと学習済みモデルは残ります）。
 - 解除は `tools\uninstall_autostart.bat`。記録は `%USERPROFILE%\keiba_app\data\viewer.log` に出ます。
 - 既定ではこのPCからのみ接続できます。スマホなど同じネットワークの機器から見たい場合は、環境変数 `KEIBA_HOST` に `0.0.0.0` を設定します。
 
