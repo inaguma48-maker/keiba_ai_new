@@ -82,12 +82,29 @@ def init_db():
     conn.commit()
     conn.close()
 
+import re
+
 def save_race(race: RaceInfo) -> None:
     init_db()
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # Delete existing race entry if overwriting
+    # Clean race_name prefix (e.g. "自動検出: ") for duplicate matching
+    clean_title = re.sub(r'^(自動検出:\s*|JRA出馬表レース:\s*|JRA取り込みレース:\s*)', '', race.race_name).strip()
+
+    # Delete existing race entries with matching race_id OR same track_name and clean race_name to prevent duplicate entries
+    cursor.execute("""
+        SELECT race_id FROM races
+        WHERE race_id = ?
+           OR (track_name = ? AND REPLACE(REPLACE(REPLACE(race_name, '自動検出: ', ''), 'JRA出馬表レース: ', ''), 'JRA取り込みレース: ', '') = ?)
+    """, (race.race_id, race.track_name, clean_title))
+
+    existing_ids = [row["race_id"] for row in cursor.fetchall()]
+    for old_id in existing_ids:
+        cursor.execute("DELETE FROM horses WHERE race_id = ?", (old_id,))
+        cursor.execute("DELETE FROM races WHERE race_id = ?", (old_id,))
+
+    # Also delete existing race entry if overwriting directly
     cursor.execute("DELETE FROM horses WHERE race_id = ?", (race.race_id,))
     cursor.execute("DELETE FROM races WHERE race_id = ?", (race.race_id,))
 
@@ -172,8 +189,15 @@ def list_all_races() -> List[Dict[str, Any]]:
     rows = cursor.fetchall()
     conn.close()
 
+    seen_keys = set()
     result = []
     for row in rows:
+        clean_title = re.sub(r'^(自動検出:\s*|JRA出馬表レース:\s*|JRA取り込みレース:\s*)', '', row["race_name"]).strip()
+        dedup_key = f"{row['track_name']}_{clean_title}"
+        if dedup_key in seen_keys:
+            continue
+        seen_keys.add(dedup_key)
+
         result.append({
             "race_id": row["race_id"],
             "race_name": row["race_name"],

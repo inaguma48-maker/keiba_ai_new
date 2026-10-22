@@ -6,10 +6,21 @@ Specialized support for G3 Sirius Stakes and all JRA dirt/turf races.
 
 import re
 import urllib.request
-import uuid
+import hashlib
 from bs4 import BeautifulSoup
 from typing import Dict, Any, List, Optional
 from src.models import RaceInfo, HorseEntry
+
+def generate_deterministic_race_id(race_name: str, track_name: str) -> str:
+    """
+    Generates a deterministic race_id from race_name and track_name.
+    Ensures that re-importing or auto-fetching the same race updates/overwrites
+    existing entries rather than creating duplicate race records.
+    """
+    clean_name = re.sub(r'^(自動検出:\s*|JRA出馬表レース:\s*|JRA取り込みレース:\s*)', '', race_name).strip()
+    key = f"{track_name}_{clean_name}"
+    m = hashlib.md5(key.encode('utf-8')).hexdigest()[:10]
+    return f"JRA_{m}"
 
 JRA_TRACKS = ["東京", "中山", "阪神", "京都", "中京", "新潟", "福島", "小倉", "札幌", "函館"]
 
@@ -162,7 +173,7 @@ def parse_jra_text(text_content: str, race_name_override: Optional[str] = None) 
             HorseEntry(8, "フタイテンロック", "秋山稔", "佐藤", 5, 486, 54.0, 86.5, 0.20, 0.12, 0.12, 0.75, 45.0)
         ]
 
-    race_id = f"JRA_IMP_{uuid.uuid4().hex[:8]}"
+    race_id = generate_deterministic_race_id(race_name, track_name)
 
     return RaceInfo(
         race_id=race_id,
@@ -217,11 +228,20 @@ def fetch_and_parse_jra_url(url: str) -> RaceInfo:
             if cleaned_title and cleaned_title != "出馬表 JRA":
                 race_name = cleaned_title
 
+        # Parse Track Name strictly from race header / title section to avoid matching track names in past performance tables
+        header_el = soup.find(class_=re.compile(r'header_line|date_line|cell date|race_title')) or soup.find('h1')
+        header_text = header_el.text if header_el else html[:3000]
+
         track_name = "東京"
-        for t in ["中山", "阪神", "京都", "中京", "新潟", "福島", "小倉", "札幌", "函館", "東京"]:
-            if t in html:
+        for t in JRA_TRACKS:
+            if t in header_text:
                 track_name = t
                 break
+        if not track_name or track_name == "東京":
+            for t in JRA_TRACKS:
+                if t in html[:3000]:
+                    track_name = t
+                    break
 
         surface_type = "ダート" if ("ダート" in html or "ダ1" in html or "ダ2" in html) else "芝"
 
@@ -332,7 +352,7 @@ def fetch_and_parse_jra_url(url: str) -> RaceInfo:
 
         if len(horses) >= 3:
             return RaceInfo(
-                race_id=f"JRA_IMP_{uuid.uuid4().hex[:8]}",
+                race_id=generate_deterministic_race_id(race_name, track_name),
                 race_name=race_name,
                 track_name=track_name,
                 surface_type=surface_type,

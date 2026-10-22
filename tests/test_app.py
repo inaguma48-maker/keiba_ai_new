@@ -154,6 +154,15 @@ def test_jra_cp932_encoding_url_import():
     assert race.race_name is not None
     assert len(race.horses) >= 1
 
+def test_jra_kikuka_sho_url_import():
+    kikuka_url = "https://www.jra.go.jp/JRADB/accessD.html?CNAME=pw01dde0108202604091120261025/39"
+    race = fetch_and_parse_jra_url(kikuka_url)
+    assert race is not None
+    assert "菊花賞" in race.race_name
+    assert race.track_name == "京都"
+    assert race.distance == 3000
+    assert len(race.horses) == 18
+
 def test_jra_sprinters_stakes_url_import():
     sprinters_url = "https://www.jra.go.jp/JRADB/accessD.html?CNAME=pw01dde0106202604091120260927/5A"
     race = fetch_and_parse_jra_url(sprinters_url)
@@ -166,6 +175,21 @@ def test_auto_detect_jra_races():
     assert len(races) >= 1
     assert races[0].race_name is not None
     assert len(races[0].horses) >= 3
+
+def test_race_deduplication():
+    init_db()
+    horse = HorseEntry(1, "重複ホース", "武豊", "調教師", 4, 480, 57.0, 90.0, 0.4, 0.2, 0.2, 0.8, 3.5)
+    race_v1 = RaceInfo("JRA_TEST_01", "第58回 スプリンターズステークス (G1)", "中山", "芝", 1200, "良", "晴", [horse])
+    race_v2 = RaceInfo("JRA_TEST_02", "自動検出: 第58回 スプリンターズステークス (G1)", "中山", "芝", 1200, "良", "晴", [horse])
+
+    save_race(race_v1)
+    save_race(race_v2)
+
+    races = list_all_races()
+    matching = [r for r in races if "スプリンターズステークス" in r["race_name"]]
+    # Should be deduplicated down to 1 latest entry
+    assert len(matching) == 1
+    assert matching[0]["race_id"] == "JRA_TEST_02"
 
 def test_flask_api_endpoints():
     client = app.test_client()
