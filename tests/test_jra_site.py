@@ -15,14 +15,16 @@ def _read(name):
 
 def test_parse_meetings():
     ms = parse_meetings(_read("jra_meetings.html"))
-    assert [(m.date, m.venue) for m in ms] == [("20261017", "東京"), ("20261017", "京都"), ("20261018", "東京")]
+    assert [(m.date, m.venue) for m in ms] == [("20261017", "東京"), ("20261017", "京都"), ("20261018", "東京"),
+                                               ("20261024", "東京"), ("20261024", "京都")]   # incl. the 'pw01drl00' (before final) form
     assert ms[0].list_cname.startswith("pw01drl10")
 
 def test_pick_target_date():
     ms = parse_meetings(_read("jra_meetings.html"))
     assert pick_target_date(ms, "20261017") == "20261017"
     assert pick_target_date(ms, "20261018") == "20261018"
-    assert pick_target_date(ms, "20261019") == "20261018"  # nothing upcoming: latest listed
+    assert pick_target_date(ms, "20261019") == "20261024"  # nearest upcoming date
+    assert pick_target_date(ms, "20261030") == "20261024"  # nothing upcoming: latest listed
 
 def test_parse_racecards():
     cards = parse_racecards(_read("jra_racecards.html"))
@@ -73,3 +75,14 @@ def test_course_variant_is_read_from_the_racecard():
     kyoto_outer = html.replace("4回東京6日", "4回京都6日").replace("（芝・左）", "（芝・右 外）")
     assert card_to_race_info(parse_racecards(kyoto_outer)[0]).course_variant == "外"
     assert card_to_race_info(parse_racecards(html)[0]).course_variant == ""          # Tokyo has a single loop
+
+
+def test_no_meetings_error_says_what_was_found():
+    from src.jra_site import JraClient
+    c = JraClient(min_interval=0)
+    c.post = lambda page, cname: "<html><a onclick=\"doAction('/JRADB/accessD.html','pw01drl99xx/00')\">x</a></html>"
+    with pytest.raises(JraSiteError, match="解釈できません"):
+        c.fetch_meetings()
+    c.post = lambda page, cname: "<html></html>"
+    with pytest.raises(JraSiteError, match="開催のない週"):
+        c.fetch_meetings()

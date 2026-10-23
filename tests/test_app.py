@@ -188,7 +188,7 @@ def test_flask_api_endpoints(monkeypatch):
 
     # JRA auto fetch (stubbed; no network)
     auto = client.post("/api/auto_fetch_jra").get_json()
-    assert auto["status"] == "success" and len(auto["results"]) == 1
+    assert auto["status"] == "success" and len(auto["results"]) == 2        # the stub returns the same racecard for each of the 2 meetings on the target date
     r = auto["results"][0]
     assert r["race"]["race_id"] == "1005202604061120261017" and len(r["predictions"]) == 2   # scratched horse excluded
     assert "recommendations" not in r

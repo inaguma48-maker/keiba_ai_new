@@ -88,12 +88,16 @@ def run_checks(root=ROOT, app_url="http://127.0.0.1:5000"):
                 except Exception as e:
                     ng(f"{label}: 層{stage}の予測ができません: {e}")
 
-    # 6. JRA site
+    # 6. JRA site: reachable, and the racecard list can still be read
     try:
         urllib.request.urlopen(urllib.request.Request("https://www.jra.go.jp/", headers={"User-Agent": "keiba_ai_new/0.1"}), timeout=6).read(100)
         ok("JRA公式サイトに接続できます")
+        from src.jra_site import JraClient, pick_target_date
+        meetings = JraClient(min_interval=0).fetch_meetings()
+        dates = sorted({m.date for m in meetings})
+        ok(f"JRA出馬表の開催を取得できます（{len(meetings)}開催、対象日 {pick_target_date(meetings)}）")
     except Exception as e:
-        ng(f"JRA公式サイトに接続できません: {e}")
+        ng(f"JRA公式サイトからの取得に失敗しました: {e}")
     return out
 
 

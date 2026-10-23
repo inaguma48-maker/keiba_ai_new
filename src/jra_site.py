@@ -129,7 +129,8 @@ def parse_meetings(html: str) -> List[Meeting]:
     """Meetings (date x venue) from the 出馬表 開催選択 page."""
     found: Dict[str, Meeting] = {}
     for _page, cname in extract_actions(html):
-        m = re.match(r"^pw01drl10(\d{2})(\d{4})(\d{2})(\d{2})(\d{8})/", cname)
+        # 'pw01drl' + 2 digits (00 = before the racecard is final, 10 = final; both carry numbers and odds) + venue ...
+        m = re.match(r"^pw01drl\d{2}(\d{2})(\d{4})(\d{2})(\d{2})(\d{8})/", cname)
         if not m:
             continue
         code, _year, kai, nichi, date = m.groups()
@@ -358,9 +359,13 @@ class JraClient:
             pass  # raw retention is best-effort; never break a fetch for it
 
     def fetch_meetings(self) -> List[Meeting]:
-        meetings = parse_meetings(self.post(*MEETING_LIST))
+        html = self.post(*MEETING_LIST)
+        meetings = parse_meetings(html)
         if not meetings:
-            raise JraSiteError("開催情報が見つかりませんでした。")
+            found = sum(1 for _p, c in extract_actions(html) if c.startswith("pw01drl"))
+            raise JraSiteError("開催情報が見つかりませんでした。" + (
+                f"（リンクは{found}件ありましたが、形式を解釈できません。JRAサイトの形式が変わった可能性があります）" if found
+                else "（開催のない週か、JRAサイトの形式が変わった可能性があります）"))
         return meetings
 
     def fetch_meeting_racecards(self, meeting: Meeting) -> List[RaceCard]:
