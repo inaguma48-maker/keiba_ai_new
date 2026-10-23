@@ -32,6 +32,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const volatilityScoreText = document.getElementById("volatility-score-text");
     const volatilityDescText = document.getElementById("volatility-desc-text");
 
+    // Trend Analysis (Cut vs Keep Horses) Elements
+    const trendAnalysisCard = document.getElementById("trend-analysis-card");
+    const cutHorsesList = document.getElementById("cut-horses-list");
+    const keepHorsesList = document.getElementById("keep-horses-list");
+
     // Canvas Simulation & Broadcast TV Elements
     const canvas = document.getElementById("raceCanvas");
     const ctx = canvas ? canvas.getContext("2d") : null;
@@ -114,6 +119,44 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         if (volatilityScoreText) volatilityScoreText.textContent = `荒れ度スコア: ${vol.volatility_score}/100`;
         if (volatilityDescText) volatilityDescText.textContent = vol.description;
+    }
+
+    function renderTrendAnalysisUI(trends) {
+        if (!trends || !trendAnalysisCard) return;
+
+        trendAnalysisCard.classList.remove("d-none");
+
+        // Render Cut Horses (絶対に3着に来ない馬の理由)
+        if (cutHorsesList) {
+            if (!trends.cut_horses || trends.cut_horses.length === 0) {
+                cutHorsesList.innerHTML = '<p class="text-muted mb-0">該当馬なし (全馬好走条件クリア)</p>';
+            } else {
+                cutHorsesList.innerHTML = trends.cut_horses.map(h => `
+                    <div class="mb-2 pb-2 border-bottom">
+                        <div class="fw-bold text-dark"><span class="badge bg-danger me-1">${h.horse_number}番</span>${h.horse_name} <span class="text-muted fw-normal">(${h.odds}倍)</span></div>
+                        <ul class="mb-0 ps-3 text-secondary mt-1">
+                            ${h.reasons.map(r => `<li>${r}</li>`).join('')}
+                        </ul>
+                    </div>
+                `).join('');
+            }
+        }
+
+        // Render Keep Horses (3着以内に来る馬の理由)
+        if (keepHorsesList) {
+            if (!trends.keep_horses || trends.keep_horses.length === 0) {
+                keepHorsesList.innerHTML = '<p class="text-muted mb-0">該当馬なし</p>';
+            } else {
+                keepHorsesList.innerHTML = trends.keep_horses.map(h => `
+                    <div class="mb-2 pb-2 border-bottom">
+                        <div class="fw-bold text-dark"><span class="badge bg-success me-1">${h.horse_number}番</span>${h.horse_name} <span class="text-muted fw-normal">(${h.odds}倍)</span></div>
+                        <ul class="mb-0 ps-3 text-secondary mt-1">
+                            ${h.reasons.map(r => `<li>${r}</li>`).join('')}
+                        </ul>
+                    </div>
+                `).join('');
+            }
+        }
     }
 
     function drawTrackCanvas(race, progress = 0) {
@@ -508,6 +551,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 updateTrackProfileUI(currentRace);
                 updateVolatilityUI(data.volatility);
+                renderTrendAnalysisUI(data.trend_analysis);
                 renderPredictions(data.predictions);
                 renderRecommendations(data.recommendations);
 
@@ -546,6 +590,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
                     updateTrackProfileUI(firstResult.race);
                     updateVolatilityUI(firstResult.volatility);
+                    renderTrendAnalysisUI(firstResult.trend_analysis);
                     renderPredictions(firstResult.predictions);
                     renderRecommendations(firstResult.recommendations);
 
@@ -598,6 +643,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 updateTrackProfileUI(result.race);
                 updateVolatilityUI(result.volatility);
+                renderTrendAnalysisUI(result.trend_analysis);
                 renderPredictions(result.predictions);
                 renderRecommendations(result.recommendations);
 
@@ -634,6 +680,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 simPredictions = result.predictions;
                 updateTrackProfileUI(raceData);
                 updateVolatilityUI(result.volatility);
+                renderTrendAnalysisUI(result.trend_analysis);
                 renderPredictions(result.predictions);
                 renderRecommendations(result.recommendations);
 

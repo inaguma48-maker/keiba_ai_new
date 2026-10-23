@@ -163,6 +163,27 @@ def test_jra_kikuka_sho_url_import():
     assert race.distance == 3000
     assert len(race.horses) == 18
 
+def test_3rd_place_trend_analysis():
+    predictor = HorseRacePredictor()
+    sample_race = get_sample_races()[0]
+    trends = predictor.analyze_3rd_place_trends(sample_race)
+
+    assert "cut_horses" in trends
+    assert "keep_horses" in trends
+    assert len(trends["cut_horses"]) + len(trends["keep_horses"]) == len(sample_race.horses)
+
+    for h in trends["cut_horses"]:
+        assert "horse_number" in h
+        assert "horse_name" in h
+        assert "reasons" in h
+        assert len(h["reasons"]) >= 1
+
+    for h in trends["keep_horses"]:
+        assert "horse_number" in h
+        assert "horse_name" in h
+        assert "reasons" in h
+        assert len(h["reasons"]) >= 1
+
 def test_jra_sprinters_stakes_url_import():
     sprinters_url = "https://www.jra.go.jp/JRADB/accessD.html?CNAME=pw01dde0106202604091120260927/5A"
     race = fetch_and_parse_jra_url(sprinters_url)

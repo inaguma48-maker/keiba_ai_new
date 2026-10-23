@@ -52,6 +52,7 @@ def get_race_detail(race_id: str):
 
     predictions = predictor.predict_race(race)
     volatility = predictor.calculate_race_volatility(race)
+    trend_analysis = predictor.analyze_3rd_place_trends(race)
     recommendations = calculate_betting_recommendations(predictions, volatility)
     result = get_race_result(race.race_id)
 
@@ -60,6 +61,7 @@ def get_race_detail(race_id: str):
         "race": race.to_dict(),
         "predictions": predictions,
         "volatility": volatility,
+        "trend_analysis": trend_analysis,
         "recommendations": recommendations,
         "result": result
     })
@@ -76,11 +78,13 @@ def auto_fetch_jra():
             save_race(race)
             preds = predictor.predict_race(race)
             vol = predictor.calculate_race_volatility(race)
+            trends = predictor.analyze_3rd_place_trends(race)
             recs = calculate_betting_recommendations(preds, vol)
             processed_results.append({
                 "race": race.to_dict(),
                 "predictions": preds,
                 "volatility": vol,
+                "trend_analysis": trends,
                 "recommendations": recs
             })
 
@@ -112,6 +116,7 @@ def import_jra():
 
         predictions = predictor.predict_race(race)
         volatility = predictor.calculate_race_volatility(race)
+        trend_analysis = predictor.analyze_3rd_place_trends(race)
         recommendations = calculate_betting_recommendations(predictions, volatility)
 
         return jsonify({
@@ -120,6 +125,7 @@ def import_jra():
             "race": race.to_dict(),
             "predictions": predictions,
             "volatility": volatility,
+            "trend_analysis": trend_analysis,
             "recommendations": recommendations
         })
     except Exception as e:
@@ -166,6 +172,7 @@ def predict_race():
 
         predictions = predictor.predict_race(race)
         volatility = predictor.calculate_race_volatility(race)
+        trend_analysis = predictor.analyze_3rd_place_trends(race)
         recommendations = calculate_betting_recommendations(predictions, volatility)
 
         return jsonify({
@@ -173,6 +180,7 @@ def predict_race():
             "race": race.to_dict(),
             "predictions": predictions,
             "volatility": volatility,
+            "trend_analysis": trend_analysis,
             "recommendations": recommendations
         })
 

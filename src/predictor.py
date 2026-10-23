@@ -87,6 +87,88 @@ class HorseRacePredictor:
         synth_df = generate_synthetic_historical_data(num_races=300)
         self.train(synth_df)
 
+    def analyze_3rd_place_trends(self, race: RaceInfo) -> Dict[str, Any]:
+        """
+        Analyzes historical trends using the 7 conditions:
+        1. 前走人気 (prev_popularity)
+        2. 馬体重 (weight)
+        3. 調教場 (training_center)
+        4. 生産牧場 (breeding_farm)
+        5. 前走着順 (prev_rank)
+        6. 前走距離 (prev_distance)
+        7. 前走レース (prev_race_name)
+
+        Generates bulleted Japanese explanations for:
+        - 絶対に3着に来ない馬の理由 (Reasons for cutting/disqualifying from top 3)
+        - 3着に来る(残す)馬の理由 (Reasons for keeping in top 3)
+        """
+        cut_horses = []
+        keep_horses = []
+
+        for h in race.horses:
+            cut_reasons = []
+            keep_reasons = []
+
+            # 1. 前走人気 (prev_popularity)
+            if h.prev_popularity >= 10:
+                cut_reasons.append(f"前走{h.prev_popularity}番人気と支持率が低く好走再現性に疑問")
+            elif h.prev_popularity <= 3:
+                keep_reasons.append(f"前走{h.prev_popularity}番人気と上位人気で実力を立証済み")
+
+            # 2. 馬体重 (weight)
+            if h.weight < 450.0:
+                cut_reasons.append(f"馬体重{int(h.weight)}kgと軽量で長距離・坂のあるタフな展開での体力不足懸念")
+            elif h.weight >= 480.0:
+                keep_reasons.append(f"馬体重{int(h.weight)}kgと恵まれた馬体でタフな競り合い・軸安定感あり")
+
+            # 3. 調教場 (training_center)
+            if h.training_center == "地方・美浦坂路難あり":
+                cut_reasons.append(f"調教場が{h.training_center}で直前仕上げに疑問")
+            else:
+                keep_reasons.append(f"調教場({h.training_center})で順調な最終追い切りとタイムを消化")
+
+            # 4. 生産牧場 (breeding_farm)
+            if h.breeding_farm in ["ノーザンファーム", "社台ファーム", "社台コーポレーション"]:
+                keep_reasons.append(f"生産牧場が最高峰の[{h.breeding_farm}]で外厩仕上げ・素質血統重視")
+
+            # 5. 前走着順 (prev_rank)
+            if h.prev_rank >= 8:
+                cut_reasons.append(f"前走{h.prev_rank}着と大敗しており一変の期待値が低い")
+            elif h.prev_rank <= 3:
+                keep_reasons.append(f"前走{h.prev_rank}着と好走トレンドを維持")
+
+            # 6. 前走距離 (prev_distance)
+            dist_diff = abs(h.prev_distance - race.distance)
+            if dist_diff >= 600:
+                cut_reasons.append(f"前走距離({h.prev_distance}m)から今走({race.distance}m)への距離差{dist_diff}mと展開適応に難あり")
+            elif dist_diff <= 200:
+                keep_reasons.append(f"前走距離({h.prev_distance}m)から同等距離({race.distance}m)で展開・ペース追従性が抜群")
+
+            # 7. 前走レース (prev_race_name)
+            if "G1" in h.prev_race_name or "G2" in h.prev_race_name or "重賞" in h.prev_race_name or "ステップ" in h.prev_race_name:
+                keep_reasons.append(f"前走格上の[{h.prev_race_name}]を経由しておりレースレベルの経験値が勝る")
+
+            # Categorize into cut vs keep
+            if len(cut_reasons) >= 2 or h.odds >= 30.0 or h.prev_rank >= 10:
+                cut_horses.append({
+                    "horse_number": h.horse_number,
+                    "horse_name": h.horse_name,
+                    "odds": h.odds,
+                    "reasons": cut_reasons if cut_reasons else ["前走データおよび馬体重・調教での好走データ条件を満たさず3着内率は極めて低い"]
+                })
+            else:
+                keep_horses.append({
+                    "horse_number": h.horse_number,
+                    "horse_name": h.horse_name,
+                    "odds": h.odds,
+                    "reasons": keep_reasons if keep_reasons else ["前走人気・馬体重・牧場データの複合条件をクリアし3着内軸として有力"]
+                })
+
+        return {
+            "cut_horses": cut_horses,
+            "keep_horses": keep_horses
+        }
+
     def calculate_race_volatility(self, race: RaceInfo) -> Dict[str, Any]:
         """
         Analyze race volatility / upset potential (荒れ度 index).

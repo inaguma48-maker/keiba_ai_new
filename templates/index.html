@@ -205,6 +205,32 @@
                         </button>
                     </div>
                 </div>
+
+                <!-- 7 Conditions Trend Analysis Section (Cut vs Keep Horses) -->
+                <div id="trend-analysis-card" class="card border-0 mb-4 bg-light shadow-sm d-none">
+                    <div class="card-header bg-dark text-white fw-bold d-flex align-items-center justify-content-between">
+                        <span><i class="fa-solid fa-list-check text-warning me-2"></i>過去データ7条件による3着内傾向分析 (箇条書き解説)</span>
+                        <span class="badge bg-secondary small">前走人気・馬体重・調教場・生産牧場・前走着順・前走距離・前走レース</span>
+                    </div>
+                    <div class="card-body p-3">
+                        <div class="row g-3">
+                            <!-- Cut Horses Column -->
+                            <div class="col-md-6">
+                                <div class="border border-danger rounded bg-white p-3 h-100">
+                                    <h6 class="fw-bold text-danger mb-2"><i class="fa-solid fa-scissors me-1"></i>絶対に3着に来ない馬 (消し馬の理由)</h6>
+                                    <div id="cut-horses-list" class="small text-muted">データ解析中...</div>
+                                </div>
+                            </div>
+                            <!-- Keep Horses Column -->
+                            <div class="col-md-6">
+                                <div class="border border-success rounded bg-white p-3 h-100">
+                                    <h6 class="fw-bold text-success mb-2"><i class="fa-solid fa-circle-check me-1"></i>3着以内に来る馬 (残す軸・紐馬の理由)</h6>
+                                    <div id="keep-horses-list" class="small text-muted">データ解析中...</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 

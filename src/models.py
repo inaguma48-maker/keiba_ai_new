@@ -20,6 +20,13 @@ class HorseEntry:
     trainer_win_rate: float   # 調教師勝率 (0.0~1.0)
     track_aptitude: float     # 馬場適性 (0.0~1.0)
     odds: float               # 単勝オッズ
+    # 過去データ詳細条件 (前走人気, 馬体重, 調教場, 生産牧場, 前走着順, 前走距離, 前走レース)
+    prev_popularity: int = 3
+    training_center: str = "栗東"
+    breeding_farm: str = "ノーザンファーム"
+    prev_rank: int = 2
+    prev_distance: int = 2000
+    prev_race_name: str = "前走"
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
