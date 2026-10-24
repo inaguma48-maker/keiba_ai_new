@@ -338,6 +338,10 @@ class JraClient:
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:
                 final_url = resp.geturl()
                 raw = resp.read()
+        except urllib.error.HTTPError as e:
+            if e.code in (502, 503, 504):
+                raise JraSiteError(f"JRAのサイトが混み合っています（{e.code}）。少し時間をおいて、もう一度試してください。") from e
+            raise JraSiteError(f"JRAサイトへの接続に失敗しました: {e}") from e
         except (urllib.error.URLError, TimeoutError, OSError) as e:
             raise JraSiteError(f"JRAサイトへの接続に失敗しました: {e}") from e
         finally:

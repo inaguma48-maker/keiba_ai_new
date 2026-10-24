@@ -71,19 +71,29 @@
         if (btn) btn.addEventListener("click", () => fetchProfiles(race, my));
     }
 
+    const pause = ms => new Promise(r => setTimeout(r, ms));
+
     async function fetchProfiles(race, my) {
         const btn = document.getElementById("btn-trend-profiles");
         const prog = document.getElementById("trend-profile-progress");
         btn.disabled = true;
         prog.textContent = "JRAの競走馬ページから取得しています…";
+        let busy = 0;
         while (my === token) {
             const d = await post("/api/profiles/fetch", { race_id: race.race_id });
             if (my !== token) return;
             if (d.status !== "success") {
+                if (/混み合って/.test(d.message || "") && busy < 5) {      // JRA busy (race days): wait and go on
+                    busy += 1;
+                    prog.textContent = `JRAのサイトが混み合っています。30秒待ってから続けます（${busy}/5回目）…`;
+                    await pause(30000);
+                    continue;
+                }
                 prog.textContent = d.message || "取得できませんでした。";
                 btn.disabled = false;
                 return;
             }
+            busy = 0;
             if (d.remaining === 0) break;
             prog.textContent = `取得中… 残り${d.remaining}頭`;
         }

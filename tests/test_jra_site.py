@@ -119,3 +119,16 @@ def test_parse_horse_profile():
         parse_horse_profile("<html><head><title>パラメータエラー　JRA</title></head></html>", "02012102000")
     with pytest.raises(JraSiteError):
         parse_horse_profile("<html><head><title>競走馬情報　JRA</title></head><body>改装中</body></html>", "02012102000")
+
+
+def test_busy_site_is_reported_plainly(monkeypatch):
+    import urllib.error
+    import urllib.request
+    from src.jra_site import JraClient
+
+    def busy(*a, **k):
+        raise urllib.error.HTTPError("https://www.jra.go.jp/JRADB/accessU.html", 503, "Service Unavailable", {}, None)
+
+    monkeypatch.setattr(urllib.request, "urlopen", busy)
+    with pytest.raises(JraSiteError, match="混み合っています（503）"):
+        JraClient(min_interval=0).post("accessU.html", "pw01dud002024100001/00")
