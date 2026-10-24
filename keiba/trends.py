@@ -218,10 +218,15 @@ def previous_runs(con, horse_ids: List[Optional[str]], dates: List[str]) -> pd.D
         out[col] = pd.to_numeric(out[col], errors="coerce")
     known = keys["horse_id"].notna().to_numpy()
     out["has_prev"] = pd.Series(np.where(known, out["prev_date"].notna(), None), dtype=object)
-    out["prev_nn"] = [norm_name(n) if d is not None and d == d else None for n, d in zip(out["prev_name"], out["prev_date"])]
-    out["prev_cls"] = [class_label(g, c, n) or None if d is not None and d == d else None
-                       for g, c, n, d in zip(out["prev_grade"], out["prev_class"], out["prev_name"], out["prev_date"])]
+    # object columns keep None as None (a plain list would become pandas 3's string dtype, None -> NaN -> "nan")
+    out["prev_nn"] = _obj(norm_name(n) if d is not None and d == d else None for n, d in zip(out["prev_name"], out["prev_date"]))
+    out["prev_cls"] = _obj(class_label(g, c, n) or None if d is not None and d == d else None
+                           for g, c, n, d in zip(out["prev_grade"], out["prev_class"], out["prev_name"], out["prev_date"]))
     return out
+
+
+def _obj(values) -> pd.Series:
+    return pd.Series(list(values), dtype=object)
 
 
 def current_horses(con, race, keiba_race_id: Optional[str], date: str) -> Tuple[pd.DataFrame, str]:
@@ -249,7 +254,7 @@ def current_horses(con, race, keiba_race_id: Optional[str], date: str) -> Tuple[
     missing = [n for n, i in zip(cur["horse_name"], cur["horse_id"]) if i is None and n]
     if missing:
         found = _ids_by_name(con, missing, date)
-        cur["horse_id"] = [i if i is not None else found.get(n) for n, i in zip(cur["horse_name"], cur["horse_id"])]
+        cur["horse_id"] = _obj(i if i is not None else found.get(n) for n, i in zip(cur["horse_name"], cur["horse_id"]))
 
     if finished and db_pop is not None and db_pop.notna().all():
         cur["pop"], src = db_pop, "確定人気"
@@ -292,7 +297,7 @@ def factor_frame(base: pd.DataFrame, prev: pd.DataFrame, distance: np.ndarray, p
     ok = [p.get("status") == "ok" for p in prof]
     f["center"] = pd.Series([p.get("center") or None if o else None for p, o in zip(prof, ok)], dtype=object)
     f["breeder"] = pd.Series([p.get("breeder") or None if o else None for p, o in zip(prof, ok)], dtype=object)
-    f["profile_status"] = [p.get("status") for p in prof]
+    f["profile_status"] = _obj(p.get("status") for p in prof)
     return f
 
 
@@ -372,6 +377,10 @@ def _num(v) -> Optional[float]:
     return None if v is None or (isinstance(v, float) and math.isnan(v)) else float(v)
 
 
+def _txt(v) -> str:
+    return "" if v is None or (isinstance(v, float) and math.isnan(v)) else str(v)
+
+
 def facts(row: pd.Series, pop_src: str) -> List[str]:
     out = []
     pop = _num(row["pop"])
@@ -379,15 +388,15 @@ def facts(row: pd.Series, pop_src: str) -> List[str]:
     bw, bwd = _num(row["bw"]), _num(row["bwd"])
     out.append(f"馬体重 {bw:.0f}kg" + (f"（{bwd:+.0f}）" if bwd is not None else "") if bw is not None else "馬体重 未発表")
     missing = {"ok": "記載なし", "notfound": "JRAにページなし"}.get(row["profile_status"], "未取得")
-    out.append(f"調教場 {row['center']}" if row["center"] else f"調教場 {missing}")
-    out.append(f"生産牧場 {row['breeder']}" if row["breeder"] else f"生産牧場 {missing}")
+    out.append(f"調教場 {_txt(row['center']) or missing}")
+    out.append(f"生産牧場 {_txt(row['breeder']) or missing}")
     if row["has_prev"] is None:
         out.append("前走 不明（過去データに見つからない馬）")
     elif not row["has_prev"]:
         out.append("前走 JRAでの出走なし")
     else:
-        parts = [row["prev_nn"] or "", f"（{row['prev_cls'] or '?'}・{SURF_JA.get(surface_norm(row['prev_surface'], row['prev_category']), '')}"
-                 f"{_num(row['prev_dist']) or 0:.0f}m）"]
+        surf = SURF_JA.get(surface_norm(row["prev_surface"], row["prev_category"]), "")
+        parts = [_txt(row["prev_nn"]), f"（{_txt(row['prev_cls']) or '?'}・{surf}{_num(row['prev_dist']) or 0:.0f}m）"]
         fin, pp = _num(row["prev_finish"]), _num(row["prev_pop"])
         parts.append(f"{fin:.0f}着" if fin is not None else "着順なし")
         if pp is not None:

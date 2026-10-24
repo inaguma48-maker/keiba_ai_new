@@ -2,11 +2,13 @@
 
 import sqlite3
 
+import numpy as np
+import pandas as pd
 import pytest
 
 from keiba import trends
-from keiba.trends import (TrendError, age_key, class_label, is_generic_name, norm_name, previous_runs, profile_ids,
-                          race_date_of, race_trends)
+from keiba.trends import (TrendError, age_key, class_label, factor_frame, facts, is_generic_name, norm_name, previous_runs,
+                          profile_ids, race_date_of, race_trends)
 from src.models import HorseEntry, RaceInfo
 from tests.make_keiba_fixture import SCHEMA
 from tests.make_trend_fixture import NAMED_TARGET, SAME_TARGET, build
@@ -191,3 +193,27 @@ def test_trend_api_and_profile_fetch(kdb, monkeypatch):
 
     monkeypatch.setenv("KEIBA_DB", kdb + ".missing")
     assert "見つかりません" in c.post("/api/trends", json={"race_id": NAMED_TARGET}).get_json()["message"]
+
+
+def test_facts_never_print_nan(tmp_path):
+    """A previous race without class information (pandas 3 turned None into NaN, shown as 'nan')."""
+    con = sqlite3.connect(str(tmp_path / "k.db"))
+    con.executescript(SCHEMA)
+    con.execute("insert into races (race_id, race_date, venue, race_name, grade, category, race_class, surface, distance_m) "
+                "values ('r1', '2026-01-05', '東京', 'テスト特別', NULL, NULL, NULL, '芝', 1600)")
+    con.execute("insert into race_entries (id, race_id, horse_id, horse_number, popularity) values (1, 'r1', 'H', 1, 3)")
+    con.execute("insert into race_results (id, race_entry_id, finish_position) values (1, 1, 2)")
+    con.execute("insert into races (race_id, race_date, venue, race_name, grade, category, race_class, surface, distance_m) "
+                "values ('r2', '2026-01-06', '中山', 'テスト杯', 'G2', '3歳', 'オープン', '芝', 2000)")
+    con.execute("insert into race_entries (id, race_id, horse_id, horse_number, popularity) values (2, 'r2', 'K', 1, 1)")
+    con.execute("insert into race_results (id, race_entry_id, finish_position) values (2, 2, 1)")
+    prev = previous_runs(con, ["H", None, "K"], ["2026-02-01"] * 3)
+    con.close()
+    base = pd.DataFrame({"horse_id": pd.Series(["H", None, "K"], dtype=object), "pop": [np.nan, 2.0, 1.0],
+                         "bw": [np.nan, 480.0, np.nan], "bwd": [np.nan, -4.0, np.nan]})
+    f = factor_frame(base, prev, np.array([1800.0] * 3), {})
+    lines = facts(f.iloc[0], "") + facts(f.iloc[1], "現在のオッズ順") + facts(f.iloc[2], "現在のオッズ順")
+    assert not any("nan" in x.lower() for x in lines), lines
+    assert "前走 テスト特別（?・芝1600m）2着・3番人気" in lines and "前走 不明（過去データに見つからない馬）" in lines
+    assert "馬体重 480kg（-4）" in lines and "人気 不明（オッズ未発表）" in lines and "調教場 未取得" in lines
+    assert "前走 テスト杯（G2・芝2000m）1着・1番人気" in lines
