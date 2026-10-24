@@ -21,7 +21,9 @@ from src.course_specs import get_course
 from src.replay import ReplayError, keiba_db_path, load_replay, resolve_race, typical_times
 from keiba.dataset import connect_ro
 from keiba.predict import AbilityError, latest_bundle, stage_probs
-from src.db import init_db, save_race, get_race_by_id, list_all_races
+from keiba.trends import TrendError, profile_ids, race_trends
+from src import horse_profiles
+from src.db import init_db, save_race, get_race_by_id, list_all_races, get_horse_profiles
 
 app = Flask(__name__)
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -145,6 +147,52 @@ def ability():
         return jsonify({"status": "error", "message": "過去データ(keiba.db)が見つかりません。"}), 404
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
+
+def _trend_race(data):
+    """(race, keiba.db path, the race's id in keiba.db or None) for the trend endpoints."""
+    race = get_race_by_id(str(data.get("race_id", "")))
+    if race is None:
+        raise TrendError("レースが見つかりません。")
+    db = keiba_db_path()
+    if not os.path.isfile(db):
+        raise TrendError("過去データ(keiba.db)が見つかりません。環境変数 KEIBA_DB でファイルの場所を指定してください。")
+    con = connect_ro(db)
+    try:
+        keiba_id = resolve_race(con, race.race_id)[0]
+    except ReplayError:
+        keiba_id = None                       # not in keiba.db yet: the app's own data is used for this race
+    finally:
+        con.close()
+    return race, db, keiba_id
+
+
+@app.route("/api/trends", methods=["POST"])
+def trends():
+    """Reasons to keep / cut each horse, from the past runnings of the same race (keiba/trends.py)."""
+    try:
+        race, db, keiba_id = _trend_race(request.get_json(silent=True) or {})
+        return jsonify({"status": "success", **race_trends(db, race, keiba_id, get_horse_profiles)})
+    except TrendError as e:
+        return jsonify({"status": "error", "message": str(e)}), 404
+    except Exception as e:
+        app.logger.exception("trends failed")
+        return jsonify({"status": "error", "message": f"傾向の集計に失敗しました: {e}"}), 500
+
+
+@app.route("/api/profiles/fetch", methods=["POST"])
+def fetch_profiles():
+    """Fetch (a batch of) breeders / training centers from the JRA horse pages for the trend of one race."""
+    try:
+        race, db, keiba_id = _trend_race(request.get_json(silent=True) or {})
+        return jsonify({"status": "success", **horse_profiles.fetch_missing(profile_ids(db, race, keiba_id))})
+    except TrendError as e:
+        return jsonify({"status": "error", "message": str(e)}), 404
+    except JraSiteError as e:
+        return jsonify({"status": "error", "message": str(e)}), 502
+    except Exception as e:
+        app.logger.exception("profile fetch failed")
+        return jsonify({"status": "error", "message": f"取得に失敗しました: {e}"}), 500
 
 
 @app.route("/api/baseline", methods=["GET"])

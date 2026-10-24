@@ -3,8 +3,8 @@
 import os
 import pytest
 from src.jra_site import (
-    JraSiteError, parse_meetings, parse_racecards, card_to_race_info,
-    cname_from_url, pick_target_date, find_all_races_cname,
+    JraNotFound, JraSiteError, parse_meetings, parse_racecards, card_to_race_info,
+    cname_from_url, pick_target_date, find_all_races_cname, cname_check, horse_cname, parse_horse_profile,
 )
 
 FIX = os.path.join(os.path.dirname(__file__), "fixtures")
@@ -44,6 +44,8 @@ def test_card_to_race_info_excludes_scratched():
     assert race.race_id == "1005202604061120261017"
     assert [h.horse_number for h in race.horses] == [1, 2]
     assert race.track_name == "東京" and race.distance == 1600
+    h = race.horses[0]
+    assert (h.horse_id, h.body_weight, h.body_weight_diff) == ("02024100001", 464.0, 10)   # kept for the past-race lookup
 
 def test_missing_odds_is_an_error_not_a_guess():
     card = parse_racecards(_read("jra_racecards.html"))[0]
@@ -86,3 +88,34 @@ def test_no_meetings_error_says_what_was_found():
     c.post = lambda page, cname: "<html></html>"
     with pytest.raises(JraSiteError, match="開催のない週"):
         c.fetch_meetings()
+
+
+# (CNAME, check value) pairs as linked on real JRA pages (horses, races, results, jockeys, trainers)
+REAL_LINKS = [
+    ("pw01dde0104202604030120261024", "50"), ("pw01dde0105202604081020261024", "76"), ("pw01dde1004202604020620261018", "DF"),
+    ("pw01dde1008202604060220261017", "42"), ("pw01dud002017104238", "0D"), ("pw01dud002022103702", "E0"),
+    ("pw01dud002023105578", "0A"), ("pw01dud002024103168", "E4"), ("pw01dud102016104583", "0C"),
+    ("pw01sde1004202604020120261018", "12"), ("pw01sde1005202604070120261018", "9B"), ("pw01sde1008202604060120261017", "49"),
+    ("pw04kmk000422", "1B"), ("pw04kmk001102", "90"), ("pw04krc015490", "CE"), ("pw05cmk000423", "EA"),
+    ("pw05cmk001082", "E1"), ("pw05cmk001177", "7C"),
+]
+
+
+def test_cname_check_matches_real_links():
+    assert [cname_check(base) for base, _ in REAL_LINKS] == [c for _, c in REAL_LINKS]
+    assert horse_cname("02017104238") == "pw01dud002017104238/0D"
+    with pytest.raises(JraSiteError):
+        horse_cname("H1_0")
+    with pytest.raises(ValueError):
+        cname_check("pw01dli00")             # a length whose check value was never verified
+
+
+def test_parse_horse_profile():
+    p = parse_horse_profile(_read("jra_horse.html"), "02024100001")
+    assert (p.horse_name, p.trainer, p.center, p.breeder) == ("アルファテスト", "試験 太郎", "栗東", "テスト牧場")
+    with pytest.raises(JraNotFound):
+        parse_horse_profile("<html><head><title>ＤＢ検索エラー　JRA</title></head><body></body></html>", "02012102000")
+    with pytest.raises(JraSiteError):
+        parse_horse_profile("<html><head><title>パラメータエラー　JRA</title></head></html>", "02012102000")
+    with pytest.raises(JraSiteError):
+        parse_horse_profile("<html><head><title>競走馬情報　JRA</title></head><body>改装中</body></html>", "02012102000")

@@ -20,6 +20,9 @@ class HorseEntry:
     trainer_win_rate: float   # 調教師勝率 (0.0~1.0)
     track_aptitude: float     # 馬場適性 (0.0~1.0)
     odds: float               # 単勝オッズ
+    horse_id: Optional[str] = None           # JRA の馬ID（keiba.db と同じ11桁）。分からなければ None
+    body_weight: Optional[float] = None      # 発表された馬体重 (kg)。未発表なら None
+    body_weight_diff: Optional[int] = None   # 馬体重の増減 (kg)
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

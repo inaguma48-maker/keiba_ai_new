@@ -295,6 +295,9 @@ def card_to_race_info(card: RaceCard) -> RaceInfo:
             trainer_win_rate=PLACEHOLDER_FEATURES["trainer_win_rate"],
             track_aptitude=PLACEHOLDER_FEATURES["track_aptitude"],
             odds=r.odds,
+            horse_id=r.horse_id,
+            body_weight=r.horse_weight,
+            body_weight_diff=int(r.weight_change) if r.weight_change and re.fullmatch(r"[+-]?\d+", r.weight_change) else None,
         ))
     inner_outer = "内" in COURSES.get(card.venue, {}).get("turf", {})
     variant = card.variant or ("内" if inner_outer and card.surface == "芝" else "")
@@ -401,3 +404,61 @@ def pick_target_date(meetings: List[Meeting], today: Optional[str] = None) -> st
     dates = sorted({m.date for m in meetings})
     upcoming = [d for d in dates if d >= today]
     return upcoming[0] if upcoming else dates[-1]
+
+
+# ---------- horse pages (breeder, trainer and the trainer's training center) ----------
+
+class JraNotFound(JraSiteError):
+    """JRA answered, but has no page for this id."""
+
+
+# The two hex digits after "/" in a CNAME are a check value: a position-weighted sum of the characters
+# (weight 33 * (i ^ (i >> 4)) for the i-th character) plus a constant that depends on the length.
+# Worked out from 1,520 links on JRA pages and checked against all of them (tests/test_jra_site.py).
+_CHECK_CONST = {13: 83, 19: 158, 29: 52}
+
+
+def cname_check(base: str) -> str:
+    if len(base) not in _CHECK_CONST:
+        raise ValueError(f"長さ{len(base)}のCNAMEの検査値は未確認です。")
+    s = sum(33 * (i ^ (i >> 4)) * ord(c) for i, c in enumerate(base))
+    return f"{(s + _CHECK_CONST[len(base)]) % 256:02X}"
+
+
+def horse_cname(horse_id: str) -> str:
+    """CNAME of the JRA horse page of an 11-digit horse id (the id in keiba.db and in racecard links)."""
+    if not re.fullmatch(r"\d{11}", str(horse_id or "")):
+        raise JraSiteError(f"馬IDの形式が違います: {horse_id}")
+    base = f"pw01dud0{horse_id}"
+    return f"{base}/{cname_check(base)}"
+
+
+@dataclass
+class HorseProfile:
+    horse_id: str
+    horse_name: str
+    trainer: str
+    center: str      # 調教師の所属（美浦 / 栗東 など）。書かれていなければ ""
+    breeder: str     # 生産牧場。書かれていなければ ""
+
+
+def parse_horse_profile(html: str, horse_id: str) -> HorseProfile:
+    soup = BeautifulSoup(html, "html.parser")
+    title = _text(soup.title)
+    if "検索エラー" in title:
+        raise JraNotFound(f"JRAにこの馬のページがありません（{horse_id}）。")
+    if "競走馬情報" not in title:
+        raise JraSiteError(f"競走馬のページではありません（{title[:30]}）。")
+    fields = {}
+    for dl in soup.select("dl"):
+        dt, dd = dl.find("dt"), dl.find("dd")
+        if dt and dd:
+            fields.setdefault(_text(dt), dd)
+    tr, breeder = fields.get("調教師名"), _text(fields.get("生産牧場"))
+    if tr is None and not breeder:
+        raise JraSiteError("競走馬のページに調教師・生産牧場の欄がありません（ページ構造が変わった可能性があります）。")
+    m = re.search(r"[（(]([^）)]+)[）)]\s*$", _text(tr))
+    name_el = soup.select_one("h1 .txt")
+    name = "".join(name_el.find_all(string=True, recursive=False)).strip() if name_el else ""
+    return HorseProfile(horse_id, name, _text(tr.find("a")) if tr is not None and tr.find("a") else "",
+                        m.group(1) if m else "", breeder)

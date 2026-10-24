@@ -208,6 +208,16 @@
                     </div>
                 </div>
 
+                <!-- Keep / cut reasons from the past runnings of the same race -->
+                <div class="card" id="trend-card">
+                    <div class="card-header text-primary">
+                        <i class="fa-solid fa-list-check me-2"></i>過去の同レースの傾向（切る理由・残す理由）
+                    </div>
+                    <div class="card-body" id="trend-body">
+                        <p class="text-muted small mb-0">レースを読み込むと表示します。</p>
+                    </div>
+                </div>
+
                 <!-- Race replay: real times on the real course dimensions -->
                 <div class="card shadow-sm border-0 mb-4">
                     <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -309,6 +319,7 @@
     <script src="/static/sim.js?v={{ v }}"></script>
     <script src="/static/curves.js?v={{ v }}"></script>
     <script src="/static/replay.js?v={{ v }}"></script>
+    <script src="/static/trends.js?v={{ v }}"></script>
     <script src="/static/app.js?v={{ v }}"></script>
 </body>
 </html>

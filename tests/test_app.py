@@ -213,6 +213,7 @@ def test_version_and_cache_busting():
     assert len(v["version"]) == 8 and v["folder"]
     html = c.get("/").get_data(as_text=True)
     assert f"replay.js?v={v['version']}" in html and f"app.js?v={v['version']}" in html
+    assert f"trends.js?v={v['version']}" in html and 'id="trend-body"' in html
     assert v["version"] in html and "起動しているフォルダ" in html
 
 

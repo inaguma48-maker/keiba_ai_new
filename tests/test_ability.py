@@ -112,6 +112,8 @@ def test_check_setup_reports_each_item(env, monkeypatch):
     text = "\n".join(f"[{s}] {m}" for s, m in lines)
     assert "[OK] keiba.db" in text and "[OK] 能力モデル" in text
     assert "結果の再生ができます" in text and "層1の予測ができます" in text and "層2の予測ができます" in text
+    trend = [f"[{s}] {m}" for s, m in lines if "過去の同レースの傾向" in m]
+    assert len(trend) == 1 and trend[0].startswith("[OK]"), trend
     assert "[NG] アプリが応答しません" in text                              # reported, not raised
 
 

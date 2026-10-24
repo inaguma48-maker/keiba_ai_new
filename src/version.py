@@ -4,7 +4,8 @@ import hashlib
 import os
 
 FILES = ("app.py", "templates/index.html", "static/app.js", "static/replay.js", "static/sim.js", "static/curves.js",
-         "src/replay.py", "src/jra_site.py", "keiba/predict.py")
+         "static/trends.js", "src/replay.py", "src/jra_site.py", "src/horse_profiles.py", "src/db.py", "keiba/predict.py",
+         "keiba/trends.py")
 
 
 def code_version(root: str) -> str:

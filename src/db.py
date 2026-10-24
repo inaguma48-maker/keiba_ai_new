@@ -56,6 +56,23 @@ def init_db():
     cols = [r["name"] for r in cursor.execute("PRAGMA table_info(races)")]
     if "course_variant" not in cols:
         cursor.execute("ALTER TABLE races ADD COLUMN course_variant TEXT NOT NULL DEFAULT ''")
+    cols = [r["name"] for r in cursor.execute("PRAGMA table_info(horses)")]
+    for name, kind in (("horse_id", "TEXT"), ("body_weight", "REAL"), ("body_weight_diff", "INTEGER")):
+        if name not in cols:
+            cursor.execute(f"ALTER TABLE horses ADD COLUMN {name} {kind}")
+
+    # breeder and training center from the JRA horse pages (keiba.db does not have them)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS horse_profiles (
+            horse_id TEXT PRIMARY KEY,
+            horse_name TEXT,
+            trainer TEXT,
+            center TEXT,
+            breeder TEXT,
+            status TEXT NOT NULL,
+            fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
 
     conn.commit()
     conn.close()
@@ -79,11 +96,13 @@ def save_race(race: RaceInfo) -> None:
         cursor.execute("""
             INSERT INTO horses (
                 race_id, horse_number, horse_name, jockey_name, trainer_name, age, weight,
-                impost, past_speed_rating, past_win_rate, jockey_win_rate, trainer_win_rate, track_aptitude, odds
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                impost, past_speed_rating, past_win_rate, jockey_win_rate, trainer_win_rate, track_aptitude, odds,
+                horse_id, body_weight, body_weight_diff
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             race.race_id, h.horse_number, h.horse_name, h.jockey_name, h.trainer_name, h.age, h.weight,
-            h.impost, h.past_speed_rating, h.past_win_rate, h.jockey_win_rate, h.trainer_win_rate, h.track_aptitude, h.odds
+            h.impost, h.past_speed_rating, h.past_win_rate, h.jockey_win_rate, h.trainer_win_rate, h.track_aptitude, h.odds,
+            h.horse_id, h.body_weight, h.body_weight_diff
         ))
 
     conn.commit()
@@ -119,7 +138,10 @@ def get_race_by_id(race_id: str) -> Optional[RaceInfo]:
             jockey_win_rate=hr["jockey_win_rate"],
             trainer_win_rate=hr["trainer_win_rate"],
             track_aptitude=hr["track_aptitude"],
-            odds=hr["odds"]
+            odds=hr["odds"],
+            horse_id=hr["horse_id"],
+            body_weight=hr["body_weight"],
+            body_weight_diff=hr["body_weight_diff"]
         ))
 
     return RaceInfo(
@@ -164,3 +186,32 @@ def list_all_races() -> List[Dict[str, Any]]:
             "horse_count": row["horse_count"]
         })
     return result
+
+
+def get_horse_profiles(horse_ids) -> Dict[str, Dict[str, Any]]:
+    """{horse_id: profile row} for the ids already fetched from JRA (also the ones JRA did not have: status 'notfound')."""
+    ids = [str(h) for h in dict.fromkeys(horse_ids) if h]
+    if not ids:
+        return {}
+    init_db()
+    conn = get_db_connection()
+    out = {}
+    try:
+        for i in range(0, len(ids), 500):
+            chunk = ids[i:i + 500]
+            for r in conn.execute(f"SELECT * FROM horse_profiles WHERE horse_id IN ({','.join('?' * len(chunk))})", chunk):
+                out[r["horse_id"]] = dict(r)
+    finally:
+        conn.close()
+    return out
+
+
+def save_horse_profile(horse_id: str, status: str, horse_name: str = "", trainer: str = "", center: str = "", breeder: str = "") -> None:
+    init_db()
+    conn = get_db_connection()
+    try:
+        conn.execute("INSERT OR REPLACE INTO horse_profiles (horse_id, horse_name, trainer, center, breeder, status) VALUES (?, ?, ?, ?, ?, ?)",
+                     (horse_id, horse_name, trainer, center, breeder, status))
+        conn.commit()
+    finally:
+        conn.close()

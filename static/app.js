@@ -18,6 +18,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // The race replay (course map, side view, ranking) lives in static/replay.js
     function updateTrackProfileUI(race) {
         if (window.Replay) window.Replay.setRace(race);
+        if (window.Trends) window.Trends.load(race);
     }
 
     async function loadRaces(selectedId = null) {

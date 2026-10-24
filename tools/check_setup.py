@@ -55,9 +55,11 @@ def run_checks(root=ROOT, app_url="http://127.0.0.1:5000"):
         ok(f"keiba.db: {n}レース、最新の開催日 {last}（{os.path.getsize(db) // 1_000_000}MB）")
         races = con.execute("select race_id, venue, race_number from races where race_date = ? order by venue, race_number", (last,)).fetchall()
         pick = next((r for r in races if r[2] == 11), races[0] if races else None)
-        entries = []
+        entries, horse_id = [], None
         if pick:
             entries = [r[0] for r in con.execute("select horse_number from race_entries where race_id=? and popularity is not null order by horse_number", (pick[0],))]
+            row = con.execute("select horse_id from race_entries where race_id=? and horse_id is not null limit 1", (pick[0],)).fetchone()
+            horse_id = str(row[0]) if row and len(str(row[0])) == 11 and str(row[0]).isdigit() else None
     finally:
         con.close()
 
@@ -87,6 +89,18 @@ def run_checks(root=ROOT, app_url="http://127.0.0.1:5000"):
                     ok(f"{label}: 層{stage}の予測ができます（上位 " + "、".join(f"{k}番 {v * 100:.1f}%" for k, v in top) + "）")
                 except Exception as e:
                     ng(f"{label}: 層{stage}の予測ができません: {e}")
+        from keiba.trends import TrendError, race_trends
+        from src.models import HorseEntry, RaceInfo
+        try:
+            race = RaceInfo(pick[0], label, pick[1], "", 0, "", "",
+                            [HorseEntry(n, f"{n}番", "", "", 0, 0, 0, 0, 0, 0, 0, 0, 0) for n in entries])
+            t = race_trends(db, race, pick[0])
+            h = t["history"]
+            ok(f"{label}: 過去の同レースの傾向を出せます（{h['label']}・{h['years']}の{h['n_races']}回、条件{len(t['rules'])}件）")
+        except TrendError as e:
+            ok(f"{label}: 過去の同レースの傾向の集計は動きます（このレースは: {e}）")
+        except Exception as e:
+            ng(f"{label}: 過去の同レースの傾向を出せません: {e}")
 
     # 6. JRA site: reachable, and the racecard list can still be read
     try:
@@ -98,6 +112,14 @@ def run_checks(root=ROOT, app_url="http://127.0.0.1:5000"):
         ok(f"JRA出馬表の開催を取得できます（{len(meetings)}開催、対象日 {pick_target_date(meetings)}）")
     except Exception as e:
         ng(f"JRA公式サイトからの取得に失敗しました: {e}")
+        return out
+    if horse_id:
+        try:
+            from src.jra_site import JraClient, horse_cname, parse_horse_profile
+            p = parse_horse_profile(JraClient(min_interval=0).post("accessU.html", horse_cname(horse_id)), horse_id)
+            ok(f"JRAの競走馬ページを読めます（例: {p.horse_name} 生産牧場 {p.breeder or '記載なし'}・所属 {p.center or '記載なし'}）")
+        except Exception as e:
+            ng(f"JRAの競走馬ページ（生産牧場・所属）を読めません: {e}")
     return out
 
 
