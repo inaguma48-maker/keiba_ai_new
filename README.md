@@ -43,7 +43,7 @@ pip install pandas numpy scikit-learn lightgbm flask pytest
 ```bash
 python3 app.py
 ```
-ブラウザで `http://localhost:5000` にアクセスします。
+ブラウザで `http://localhost:5001` にアクセスします。
 
 ### 3. テストの実行
 ```bash
