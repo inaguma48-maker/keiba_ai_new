@@ -5,28 +5,37 @@ document.addEventListener("DOMContentLoaded", () => {
     let simIsRunning = false;
     let simProgress = 0; // 0 to 100%
     let simRunners = [];
+    let simSpeedMultiplier = 1.0;
 
     const selectRace = document.getElementById("select-race");
     const canvas = document.getElementById("race-canvas");
     const ctx = canvas ? canvas.getContext("2d") : null;
     const btnStartSim = document.getElementById("btn-start-sim");
     const btnResetSim = document.getElementById("btn-reset-sim");
+    const btnSpeedSim = document.getElementById("btn-speed-sim");
+    const simSpeedText = document.getElementById("sim-speed-text");
     const simTimer = document.getElementById("sim-timer");
     const simLeaderName = document.getElementById("sim-leader-name");
-    const simCommentary = document.getElementById("sim-commentary");
-    const simTimeBadge = document.getElementById("sim-time-badge");
     const simRaceTitle = document.getElementById("sim-race-title");
+    const simBigRank = document.getElementById("sim-big-rank");
+    const simTotalCount = document.getElementById("sim-total-count");
+    const simSkillPopup = document.getElementById("sim-skill-popup");
+    const simSkillText = document.getElementById("sim-skill-text");
+    const simCommentaryHeadline = document.getElementById("sim-commentary-headline");
+    const simCommentarySub = document.getElementById("sim-commentary-sub");
+    const topProgressFill = document.getElementById("top-progress-fill");
+    const topHorsesTrack = document.getElementById("top-horses-track");
 
-    // Standard JRA Helmet / Cap Colors by Waku / Horse Number
+    // Standard JRA Cap Colors (8 Waku colors)
     const CAP_COLORS = [
-        { bg: "#ffffff", text: "#000000" }, // 1: White
-        { bg: "#222222", text: "#ffffff" }, // 2: Black
-        { bg: "#e63946", text: "#ffffff" }, // 3: Red
-        { bg: "#1d3557", text: "#ffffff" }, // 4: Blue
-        { bg: "#ffb703", text: "#000000" }, // 5: Yellow
-        { bg: "#2a9d8f", text: "#ffffff" }, // 6: Green
-        { bg: "#f4a261", text: "#000000" }, // 7: Orange
-        { bg: "#ffb3c6", text: "#000000" }  // 8: Pink
+        { bg: "#ffffff", text: "#000000", border: "#cccccc" }, // 1: White
+        { bg: "#222222", text: "#ffffff", border: "#000000" }, // 2: Black
+        { bg: "#e63946", text: "#ffffff", border: "#b01825" }, // 3: Red
+        { bg: "#1d3557", text: "#ffffff", border: "#0d1b2a" }, // 4: Blue
+        { bg: "#ffb703", text: "#000000", border: "#d49200" }, // 5: Yellow
+        { bg: "#2a9d8f", text: "#ffffff", border: "#186057" }, // 6: Green
+        { bg: "#f4a261", text: "#000000", border: "#cc6f28" }, // 7: Orange
+        { bg: "#ffb3c6", text: "#000000", border: "#d8708c" }  // 8: Pink
     ];
 
     function getCapColor(num) {
@@ -34,14 +43,24 @@ document.addEventListener("DOMContentLoaded", () => {
         return CAP_COLORS[idx];
     }
 
-    // Initialize TV Race Simulation State
+    // Toggle Speed Multiplier (1x -> 2x -> 3x -> 1x)
+    if (btnSpeedSim) {
+        btnSpeedSim.addEventListener("click", () => {
+            if (simSpeedMultiplier === 1.0) simSpeedMultiplier = 2.0;
+            else if (simSpeedMultiplier === 2.0) simSpeedMultiplier = 3.0;
+            else simSpeedMultiplier = 1.0;
+            if (simSpeedText) simSpeedText.textContent = `${simSpeedMultiplier.toFixed(1)}x`;
+        });
+    }
+
+    // Initialize Game-style Race Simulation State
     function initRaceSimulation(race, predictions) {
         if (!canvas || !ctx) return;
         currentRace = race;
         simPredictions = predictions || [];
 
         if (simRaceTitle && race) {
-            simRaceTitle.innerHTML = `<i class="fa-solid fa-tv me-2 text-warning"></i>${race.race_name} (${race.track_name} ${race.surface_type}${race.distance}m)`;
+            simRaceTitle.innerHTML = `<i class="fa-solid fa-horse me-2 text-warning"></i>${race.race_name} (${race.track_name} ${race.surface_type}${race.distance}m)`;
         }
 
         simProgress = 0;
@@ -52,12 +71,15 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         if (btnStartSim) {
-            btnStartSim.innerHTML = '<i class="fa-solid fa-play me-1"></i> 実況中継スタート';
+            btnStartSim.innerHTML = '<i class="fa-solid fa-play me-1"></i> レーススタート';
             btnStartSim.classList.replace("btn-danger", "btn-warning");
             btnStartSim.classList.replace("text-white", "text-dark");
         }
 
-        // Build Runners from predictions or horses
+        const totalRunners = simPredictions.length || 18;
+        if (simTotalCount) simTotalCount.textContent = totalRunners;
+
+        // Build Runners
         simRunners = simPredictions.map((p, idx) => {
             const baseProb = p.win_probability || (0.15 - idx * 0.01);
             const odds = p.odds || 5.0;
@@ -70,147 +92,176 @@ document.addEventListener("DOMContentLoaded", () => {
                 win_probability: baseProb,
                 speedRating: speedRating,
                 currentDist: 0,
-                laneOffset: (idx % 4) * 6 - 9, // staggered track lanes
+                xPos: 100,
+                yPos: 150 + (idx % 6) * 35,
+                laneOffset: (idx % 5) * 18 - 36,
                 color: getCapColor(p.horse_number),
-                rank: idx + 1
+                rank: idx + 1,
+                hasTriggeredSkill: false
             };
         });
 
         updateSimulationUI();
-        drawRaceTrack();
-        if (simCommentary) {
-            simCommentary.textContent = `出走準備完了！「実況中継スタート」を押すとAIライブ熱血実況が始まります！`;
-        }
+        drawUmamusumeTrack();
+        if (simCommentaryHeadline) simCommentaryHeadline.textContent = `さあ、誰が最初に仕掛けるのか！？`;
+        if (simCommentarySub) simCommentarySub.textContent = `各馬一斉に出走準備完了！絶好の馬場コンディションです！`;
     }
 
-    // Convert 0..1 distance progress along oval track to Canvas (x, y) coordinates
-    function getTrackPos(progress, laneOffset) {
-        // Oval Dimensions
-        const cx = 380, cy = 160;
-        const rx = 240 + laneOffset; // horizontal radius
-        const ry = 90 + laneOffset;  // vertical radius
-
-        // Counter-clockwise race oval movement starting from bottom right (Start Gate)
-        // startAngle = 0 (bottom right home stretch) -> theta from 0 to 2*PI
-        const angle = progress * Math.PI * 2;
-
-        const x = cx + rx * Math.cos(angle - Math.PI / 2);
-        const y = cy + ry * Math.sin(angle - Math.PI / 2);
-
-        return { x, y, angle };
-    }
-
-    // Draw Realistic 2D Race Track
-    function drawRaceTrack() {
+    // Draw Umamusume Game-style 3D-Perspective Track and Horse Sprites
+    function drawUmamusumeTrack() {
         if (!ctx) return;
 
-        // Background
-        ctx.fillStyle = "#121824";
+        // Clear Background (Lush Turf Green)
+        ctx.fillStyle = "#7ca16d";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // Turf Track Outer Oval
-        ctx.fillStyle = "#1e4d2b";
+        // Track Fence Rail (Top Inner Fence Curve)
+        ctx.save();
         ctx.beginPath();
-        ctx.ellipse(380, 160, 275, 125, 0, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.moveTo(0, 110);
+        ctx.bezierCurveTo(280, 110, 520, 170, 800, 180);
+        ctx.lineWidth = 12;
+        ctx.strokeStyle = "#4d6b41";
+        ctx.stroke();
 
-        // Dirt Track Inner Oval Surface
-        ctx.fillStyle = "#705335";
-        ctx.beginPath();
-        ctx.ellipse(380, 160, 255, 105, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Inner Turf Field Center
-        ctx.fillStyle = "#0e2e17";
-        ctx.beginPath();
-        ctx.ellipse(380, 160, 185, 55, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Rails (Inner & Outer White Lines)
+        ctx.lineWidth = 6;
         ctx.strokeStyle = "#ffffff";
+        ctx.stroke();
+
+        // White Fence Posts along Rail
+        for (let x = 30; x <= 800; x += 45) {
+            const progressRatio = x / 800;
+            const y = 110 + Math.pow(progressRatio, 1.8) * 70;
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(x - 3, y - 18, 6, 22);
+            ctx.fillStyle = "#dddddd";
+            ctx.fillRect(x - 1, y - 18, 2, 22);
+        }
+        ctx.restore();
+
+        // Dirt/Turf Main Running Track Surface (Perspective Slopes)
+        const trackGradient = ctx.createLinearGradient(0, 150, 0, 420);
+        trackGradient.addColorStop(0, "#83a974");
+        trackGradient.addColorStop(0.4, "#8dae7e");
+        trackGradient.addColorStop(1, "#668c57");
+        ctx.fillStyle = trackGradient;
+        ctx.beginPath();
+        ctx.moveTo(0, 120);
+        ctx.bezierCurveTo(300, 120, 550, 180, 800, 190);
+        ctx.lineTo(800, 420);
+        ctx.lineTo(0, 420);
+        ctx.closePath();
+        ctx.fill();
+
+        // White Lane Divider Stripes
+        ctx.save();
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.35)";
         ctx.lineWidth = 3;
+        ctx.setLineDash([15, 12]);
         ctx.beginPath();
-        ctx.ellipse(380, 160, 260, 110, 0, 0, Math.PI * 2);
+        ctx.moveTo(0, 240);
+        ctx.bezierCurveTo(300, 250, 550, 270, 800, 280);
         ctx.stroke();
-
-        ctx.strokeStyle = "#405d47";
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.ellipse(380, 160, 190, 60, 0, 0, Math.PI * 2);
-        ctx.stroke();
-
-        // Finish Line Checkered Strip (Top Straight / Finishing Stretch)
-        ctx.save();
-        ctx.strokeStyle = "#ff4d4d";
-        ctx.lineWidth = 4;
-        ctx.beginPath();
-        ctx.moveTo(380, 50);
-        ctx.lineTo(380, 100);
-        ctx.stroke();
-
-        ctx.fillStyle = "#ffffff";
-        ctx.font = "bold 11px sans-serif";
-        ctx.fillText("🏁 FINISH", 350, 42);
         ctx.restore();
 
-        // Start Gate Marker
-        const startPos = getTrackPos(0, 0);
+        // Outer Fence Rails (Bottom Right Curve)
         ctx.save();
-        ctx.strokeStyle = "#ffc107";
-        ctx.lineWidth = 4;
-        ctx.strokeRect(startPos.x - 12, startPos.y - 18, 24, 36);
-        ctx.fillStyle = "#ffc107";
-        ctx.font = "bold 10px sans-serif";
-        ctx.fillText("START ゲート", startPos.x - 28, startPos.y + 32);
+        ctx.beginPath();
+        ctx.moveTo(400, 420);
+        ctx.bezierCurveTo(600, 400, 750, 360, 800, 330);
+        ctx.lineWidth = 14;
+        ctx.strokeStyle = "#a37035"; // Wood fence rail
+        ctx.stroke();
+        ctx.lineWidth = 8;
+        ctx.strokeStyle = "#c88a44";
+        ctx.stroke();
         ctx.restore();
 
-        // Draw Slope / Feature Callout
-        ctx.fillStyle = "rgba(255, 255, 255, 0.15)";
-        ctx.fillRect(250, 270, 260, 18);
-        ctx.fillStyle = "#e0e0e0";
-        ctx.font = "10px sans-serif";
-        ctx.fillText("▲ 直線急坂 (勾配 2.0m)", 310, 283);
+        // Finish Line Gate Indicator (near end of track)
+        if (simProgress > 0.85) {
+            ctx.save();
+            ctx.fillStyle = "#ff3333";
+            ctx.fillRect(680, 160, 8, 240);
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "bold 14px sans-serif";
+            ctx.fillText("🏁 GOAL", 655, 150);
+            ctx.restore();
+        }
 
-        // Draw Horses
+        // Draw Umamusume Horse Runners
         if (simRunners.length > 0) {
-            // Sort by current distance so trailing horses are drawn first, leaders drawn on top
-            const sorted = [...simRunners].sort((a, b) => a.currentDist - b.currentDist);
+            // Sort runners by Y-position & progress so trailing/further horses are drawn behind
+            const sorted = [...simRunners].sort((a, b) => (a.yPos - b.yPos));
 
             sorted.forEach(runner => {
-                const pos = getTrackPos(runner.currentDist, runner.laneOffset);
+                // Map runner's progress (0..1) relative to screen camera window
+                const relProgress = Math.max(0, Math.min(1.0, (runner.currentDist - simProgress * 0.85) / 0.2 + 0.3));
+                const rx = 80 + relProgress * 620;
+                const ry = 190 + runner.laneOffset + (relProgress * 60);
 
-                // Draw Horse Badge / Helmet Circle
+                runner.xPos = rx;
+                runner.yPos = ry;
+
                 ctx.save();
 
-                // Shadow
-                ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+                // 1. Motion Shadow
+                ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
                 ctx.beginPath();
-                ctx.arc(pos.x + 2, pos.y + 3, 11, 0, Math.PI * 2);
+                ctx.ellipse(rx, ry + 12, 18, 7, 0, 0, Math.PI * 2);
                 ctx.fill();
 
-                // Helmet Circle
+                // 2. Chibi / Umamusume Runner Character Body
+                // Hair / Head
+                ctx.fillStyle = "#4a2c11"; // Anime Hair
+                ctx.beginPath();
+                ctx.arc(rx, ry - 14, 11, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Outfit Body
                 ctx.fillStyle = runner.color.bg;
                 ctx.beginPath();
-                ctx.arc(pos.x, pos.y, 11, 0, Math.PI * 2);
+                ctx.roundRect(rx - 8, ry - 7, 16, 18, 4);
                 ctx.fill();
-                ctx.lineWidth = 2;
+                ctx.lineWidth = 1.5;
+                ctx.strokeStyle = runner.color.border;
+                ctx.stroke();
+
+                // Helmet / Number Cap Circle
+                ctx.fillStyle = runner.color.bg;
+                ctx.beginPath();
+                ctx.arc(rx, ry - 22, 9, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.lineWidth = 1.5;
                 ctx.strokeStyle = "#ffffff";
                 ctx.stroke();
 
                 // Horse Number Text
                 ctx.fillStyle = runner.color.text;
-                ctx.font = "bold 11px sans-serif";
+                ctx.font = "bold 10px sans-serif";
                 ctx.textAlign = "center";
                 ctx.textBaseline = "middle";
-                ctx.fillText(runner.horse_number, pos.x, pos.y + 0.5);
+                ctx.fillText(runner.horse_number, rx, ry - 21.5);
 
-                // Lead Horse Banner Overlay
+                // 3. Yellow Inverted Triangle (▼) for Lead Horse (Matching Umamusume Target Marker in user image)
                 if (runner.rank === 1) {
-                    ctx.fillStyle = "#ffc107";
-                    ctx.fillRect(pos.x - 28, pos.y - 28, 56, 14);
-                    ctx.fillStyle = "#000000";
-                    ctx.font = "bold 9px sans-serif";
-                    ctx.fillText(runner.horse_name.substring(0, 5), pos.x, pos.y - 21);
+                    ctx.fillStyle = "#ffea00";
+                    ctx.strokeStyle = "#000000";
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(rx, ry - 35);
+                    ctx.lineTo(rx - 7, ry - 46);
+                    ctx.lineTo(rx + 7, ry - 46);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+
+                    // Horse Name Bubble
+                    ctx.fillStyle = "rgba(0,0,0,0.75)";
+                    ctx.roundRect(rx - 32, ry - 65, 64, 16, 4);
+                    ctx.fill();
+                    ctx.fillStyle = "#ffffff";
+                    ctx.font = "bold 10px sans-serif";
+                    ctx.fillText(runner.horse_name.substring(0, 5), rx, ry - 54);
                 }
 
                 ctx.restore();
@@ -218,52 +269,39 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    // Play-by-Play TV Broadcast Commentary Logic
-    function updateCommentary(leader, progress, elapsedSec) {
-        if (!simCommentary || !leader) return;
+    // Play-by-Play Commentary & Skill Popup Triggers
+    function updateUmamusumeCommentary(leader, second, progress) {
+        if (!leader) return;
 
-        let line = "";
-        if (progress < 0.05) {
-            line = `【スタート！】全馬一斉にゲートが開きました！綺麗にスタートを切りました！`;
-        } else if (progress < 0.25) {
-            line = `【第1〜2コーナー】先頭に立ったのは${leader.horse_number}番 ${leader.horse_name}！好スタートからレースを引っぱります！`;
-        } else if (progress < 0.55) {
-            line = `【向正面】ペースは順調！${leader.horse_number}番 ${leader.horse_name}が1馬身リード！後続もじわじわと位置を上げてくる！`;
-        } else if (progress < 0.80) {
-            line = `【第3〜4コーナー】さあ各馬スパート開始！${leader.horse_number}番 ${leader.horse_name}が先頭をキープして最後の直線へ向かいます！`;
+        if (progress < 0.08) {
+            if (simCommentaryHeadline) simCommentaryHeadline.textContent = `さあ、全馬一斉に綺麗にスタートを切りました！`;
+            if (simCommentarySub) simCommentarySub.textContent = `好スタートを切ったのは${leader.horse_number}番 ${leader.horse_name}！`;
+        } else if (progress < 0.35) {
+            if (simCommentaryHeadline) simCommentaryHeadline.textContent = `さあ、誰が最初に仕掛けるのか！？`;
+            const secName = second ? `${second.horse_number}番 ${second.horse_name}` : "後続集団";
+            if (simCommentarySub) simCommentarySub.textContent = `${secName} 2番手につけ、様子を見守る！`;
+        } else if (progress < 0.70) {
+            if (simCommentaryHeadline) simCommentaryHeadline.textContent = `【第3〜4コーナー】各馬位置取りを激しく争う！`;
+            if (simCommentarySub) simCommentarySub.textContent = `先頭${leader.horse_name}がしっかり手応えを残して直線を迎える！`;
+
+            // Skill trigger demo at mid race
+            if (!leader.hasTriggeredSkill && simSkillPopup && simSkillText) {
+                leader.hasTriggeredSkill = true;
+                simSkillText.textContent = `【脚質: 逃げ】${leader.horse_name} 先頭キープ発動！`;
+                simSkillPopup.classList.remove("d-none");
+                setTimeout(() => simSkillPopup.classList.add("d-none"), 2500);
+            }
         } else if (progress < 0.95) {
-            const second = simRunners.find(r => r.rank === 2);
-            const secondText = second ? `外から${second.horse_number}番 ${second.horse_name}が猛追！` : "";
-            line = `【最後の直線！】激しい叩き合い！${leader.horse_name}が粘る！${secondText}残り200m！`;
+            if (simCommentaryHeadline) simCommentaryHeadline.textContent = `【最後の直線！】叩き合い！ラストスパート！`;
+            const secName = second ? `外から${second.horse_name}が追撃！` : "";
+            if (simCommentarySub) simCommentarySub.textContent = `${leader.horse_name}が粘る！${secName} 残り200m！`;
         } else {
-            line = `【ゴールイン！】勝ったのは${leader.horse_number}番 ${leader.horse_name}！AIの緻密な予想通りの圧倒的な走りで見事に勝利を収めました！`;
-        }
-
-        if (simCommentary.textContent !== line) {
-            simCommentary.textContent = line;
-            speakText(line);
+            if (simCommentaryHeadline) simCommentaryHeadline.textContent = `【ゴールイン！】圧巻の勝負を見せた！`;
+            if (simCommentarySub) simCommentarySub.textContent = `栄光の1着は${leader.horse_number}番 ${leader.horse_name}！AI予想通りの見事な勝利！`;
         }
     }
 
-    // Optional Web Speech API TTS for TV Broadcast feel
-    let lastSpokenText = "";
-    function speakText(text) {
-        if (!('speechSynthesis' in window) || text === lastSpokenText) return;
-        try {
-            window.speechSynthesis.cancel(); // stop ongoing speech
-            const cleanText = text.replace(/【.*?】/g, "");
-            const utterance = new SpeechSynthesisUtterance(cleanText);
-            utterance.lang = "ja-JP";
-            utterance.rate = 1.2; // lively Japanese commentary pace
-            utterance.pitch = 1.1;
-            lastSpokenText = text;
-            window.speechSynthesis.speak(utterance);
-        } catch (e) {
-            // ignore speech errors gracefully
-        }
-    }
-
-    // Update Simulation Time & Leaderboard Overlay
+    // Update Simulation Time, Leaderboard & Progress Track
     function updateSimulationUI() {
         if (simRunners.length === 0) return;
 
@@ -272,6 +310,13 @@ document.addEventListener("DOMContentLoaded", () => {
         simRunners.forEach((r, idx) => r.rank = idx + 1);
 
         const leader = simRunners[0];
+        const second = simRunners[1];
+
+        // Update Big Rank display for the predicted winner (#1 selection or user focus)
+        if (simBigRank) {
+            simBigRank.textContent = leader ? leader.rank : "1";
+        }
+
         const elapsedSec = (simProgress * 100 * 0.95).toFixed(1);
 
         if (simTimer) {
@@ -284,28 +329,43 @@ document.addEventListener("DOMContentLoaded", () => {
             simLeaderName.textContent = `先頭: ${leader.horse_number}番 ${leader.horse_name}`;
         }
 
-        if (simTimeBadge) {
-            simTimeBadge.textContent = `${elapsedSec}秒`;
+        // Update Top Goal <--- Start Progress Tracker
+        if (topProgressFill) {
+            topProgressFill.style.width = `${(simProgress * 100).toFixed(1)}%`;
         }
 
-        updateCommentary(leader, simProgress, elapsedSec);
+        if (topHorsesTrack) {
+            topHorsesTrack.innerHTML = simRunners.map(r => {
+                const posPercent = (r.currentDist * 100).toFixed(1);
+                return `
+                    <span class="position-absolute translate-middle" style="left: ${posPercent}%; top: -6px;">
+                        <span class="badge rounded-circle p-1 text-center shadow-sm" style="background:${r.color.bg}; color:${r.color.text}; font-size: 8px; width:16px; height:16px; display:inline-block; border:1px solid #fff; line-height:10px;">
+                            ${r.horse_number}
+                        </span>
+                    </span>
+                `;
+            }).join("");
+        }
+
+        updateUmamusumeCommentary(leader, second, simProgress);
     }
 
     // Main Animation Loop
     function animateRace() {
         if (!simIsRunning) return;
 
-        simProgress += 0.0025; // Speed factor (~12-15 seconds full race)
+        const delta = 0.0025 * simSpeedMultiplier;
+        simProgress += delta;
 
-        // Update each runner according to their speed & small random variance
-        simRunners.forEach((runner, idx) => {
+        // Update each runner according to speedRating
+        simRunners.forEach((runner) => {
             const staminaFactor = 1.0 + (runner.speedRating / 100.0) * 0.15;
             const variance = (Math.random() - 0.48) * 0.0008;
-            runner.currentDist = Math.min(1.0, runner.currentDist + 0.0025 * staminaFactor + variance);
+            runner.currentDist = Math.min(1.0, runner.currentDist + delta * staminaFactor + variance);
         });
 
         updateSimulationUI();
-        drawRaceTrack();
+        drawUmamusumeTrack();
 
         if (simProgress >= 1.0) {
             simIsRunning = false;

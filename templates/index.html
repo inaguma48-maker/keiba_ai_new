@@ -210,16 +210,19 @@
             <!-- Right Column: Predictions & Recommended Tickets -->
             <div class="col-lg-8">
 
-                <!-- TV Broadcast Simulation Card -->
-                <div class="card bg-dark text-white shadow-lg mb-4 overflow-hidden border border-secondary">
+                <!-- Umamusume Game Style Race Simulation Card -->
+                <div class="card bg-dark text-white shadow-lg mb-4 overflow-hidden border border-secondary rounded-4">
                     <div class="card-header bg-black text-warning d-flex justify-content-between align-items-center py-2 px-3 border-bottom border-secondary">
                         <div class="d-flex align-items-center">
-                            <span class="badge bg-danger me-2 animate-pulse"><i class="fa-solid fa-circle me-1"></i>LIVE 中継</span>
-                            <span class="fw-bold fs-6" id="sim-race-title"><i class="fa-solid fa-tv me-2 text-warning"></i>リアルタイム AI レース中継シミュレーション</span>
+                            <span class="badge bg-danger me-2 animate-pulse"><i class="fa-solid fa-gamepad me-1"></i>GAME MODE</span>
+                            <span class="fw-bold fs-6" id="sim-race-title"><i class="fa-solid fa-horse me-2 text-warning"></i>ウマ娘風 3D風レース予想シミュレーション</span>
                         </div>
-                        <div>
-                            <button id="btn-start-sim" class="btn btn-warning btn-sm fw-bold me-1 text-dark">
-                                <i class="fa-solid fa-play me-1"></i> 実況中継スタート
+                        <div class="d-flex align-items-center gap-1">
+                            <button id="btn-speed-sim" class="btn btn-outline-warning btn-sm fw-bold">
+                                <i class="fa-solid fa-forward me-1"></i><span id="sim-speed-text">1.0x</span>
+                            </button>
+                            <button id="btn-start-sim" class="btn btn-warning btn-sm fw-bold text-dark">
+                                <i class="fa-solid fa-play me-1"></i> レーススタート
                             </button>
                             <button id="btn-reset-sim" class="btn btn-outline-light btn-sm fw-bold">
                                 <i class="fa-solid fa-rotate-left me-1"></i> リセット
@@ -227,28 +230,58 @@
                         </div>
                     </div>
 
-                    <!-- Canvas Container -->
-                    <div class="position-relative bg-dark p-2 text-center" style="min-height: 280px; background-color: #121824 !important;">
-                        <canvas id="race-canvas" width="760" height="320" class="w-100 rounded shadow-inner" style="max-height: 380px; object-fit: contain; background: #1a2232;"></canvas>
+                    <!-- Canvas Stage Container -->
+                    <div class="position-relative bg-dark p-0 text-center overflow-hidden" style="min-height: 380px; background-color: #8da182 !important;">
 
-                        <!-- TV Overlay Stats Badge (Top Right) -->
-                        <div class="position-absolute top-0 end-0 m-3 p-2 bg-black bg-opacity-75 rounded border border-secondary text-end small" style="pointer-events: none; backdrop-filter: blur(4px);">
-                            <div class="text-warning fw-bold small mb-1"><i class="fa-solid fa-stopwatch me-1"></i>レースタイム</div>
-                            <div class="fs-4 fw-bold font-monospace text-white" id="sim-timer">00:00.0</div>
-                            <div class="text-info small mt-1" id="sim-leader-name">先頭: ----</div>
+                        <!-- Top Goal <--- Start Progress Tracker Bar -->
+                        <div class="position-absolute top-0 start-0 end-0 p-2 z-3 bg-black bg-opacity-60 backdrop-blur d-flex align-items-center px-4">
+                            <span class="badge bg-danger fw-bold fs-7 me-2">GOAL</span>
+                            <div class="flex-grow-1 position-relative mx-2" style="height: 12px; background: rgba(255,255,255,0.25); border-radius: 6px;">
+                                <div id="top-progress-fill" style="width: 0%; height: 100%; background: linear-gradient(90deg, #ff416c, #ff4b2b); border-radius: 6px;"></div>
+                                <div id="top-horses-track" class="position-absolute top-50 start-0 w-100 translate-middle-y"></div>
+                            </div>
+                            <span class="badge bg-primary fw-bold fs-7 ms-2">START</span>
                         </div>
+
+                        <!-- Canvas -->
+                        <canvas id="race-canvas" width="800" height="420" class="w-100 shadow-inner" style="max-height: 440px; object-fit: cover; background: #8da182;"></canvas>
+
+                        <!-- Bottom Left Stylized Big Rank Display (e.g. "1 / 18") -->
+                        <div class="position-absolute bottom-0 start-0 m-3 z-3 text-start" style="pointer-events: none;">
+                            <div class="d-flex align-items-baseline">
+                                <span class="display-3 fw-black text-warning font-monospace lh-1" id="sim-big-rank" style="text-shadow: 2px 2px 8px rgba(0,0,0,0.8); font-weight: 900;">1</span>
+                                <span class="fs-4 fw-bold text-white opacity-75 ms-1 font-monospace">/ <span id="sim-total-count">18</span></span>
+                            </div>
+                        </div>
+
+                        <!-- Skill / Trigger Popup Banner (Top Right Game Skill Notice) -->
+                        <div id="sim-skill-popup" class="position-absolute top-0 end-0 m-4 me-3 mt-5 z-3 d-none animate-slide-left">
+                            <div class="bg-white text-dark fw-bold px-3 py-2 rounded-pill shadow-lg border border-warning d-flex align-items-center gap-2">
+                                <span class="badge bg-warning text-dark rounded-circle p-2"><i class="fa-solid fa-bolt fs-6"></i></span>
+                                <span id="sim-skill-text" class="fs-7 text-dark fw-bold">【脚質: 差し】ラストスパート発動！</span>
+                            </div>
+                        </div>
+
+                        <!-- Timer Stats (Top Right Overlay) -->
+                        <div class="position-absolute bottom-0 end-0 m-3 z-3 p-2 bg-black bg-opacity-75 rounded-3 border border-secondary text-end small" style="pointer-events: none; backdrop-filter: blur(4px);">
+                            <div class="text-warning fw-bold fs-7 mb-1"><i class="fa-solid fa-stopwatch me-1"></i>タイム</div>
+                            <div class="fs-4 fw-bold font-monospace text-white" id="sim-timer">00:00.0</div>
+                            <div class="text-info small mt-1 fw-bold" id="sim-leader-name">先頭: ----</div>
+                        </div>
+
                     </div>
 
-                    <!-- Live Commentary Bar (Match TV Overlay style) -->
+                    <!-- Umamusume Style Game Commentary Box -->
                     <div class="card-footer bg-black border-top border-secondary p-3">
-                        <div class="d-flex align-items-center bg-dark p-2 rounded border border-warning">
-                            <span class="badge bg-warning text-dark me-2 py-2 px-3 fw-bold fs-7" style="white-space: nowrap;">
-                                <i class="fa-solid fa-bullhorn me-1"></i> AI熱血ライブ実況
-                            </span>
-                            <div class="flex-grow-1 text-white fw-bold px-2 text-truncate" id="sim-commentary" style="font-size: 0.95rem; letter-spacing: 0.5px;">
-                                出走準備完了！「実況中継スタート」を押すとAIライブ熱血実況が始まります！
+                        <div class="bg-dark bg-opacity-90 p-3 rounded-3 border border-secondary text-start" style="font-family: sans-serif;">
+                            <div class="d-flex align-items-center mb-1">
+                                <span class="text-danger fw-bold me-2 fs-6"><i class="fa-solid fa-microphone-lines me-1"></i>実況 :</span>
+                                <span class="text-warning fw-bold fs-6" id="sim-commentary-headline">さあ、誰が最初に仕掛けるのか！？</span>
                             </div>
-                            <span class="badge bg-danger rounded-pill px-3 py-2 font-monospace fs-6" id="sim-time-badge">0.0秒</span>
+                            <div class="d-flex align-items-center mt-1">
+                                <span class="text-pink fw-bold me-2 fs-6" style="color: #ff69b4;"><i class="fa-solid fa-comment-dots me-1"></i>解説 :</span>
+                                <span class="text-white fw-bold fs-6" id="sim-commentary-sub">2番手につけ、相手の様子を見守る！</span>
+                            </div>
                         </div>
                     </div>
                 </div>
