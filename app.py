@@ -5,17 +5,16 @@ Flask API Web Application for Horse Racing AI Prediction System.
 import os
 import sys
 
-# Ensure repository root and src directory are in sys.path across all platforms
-APP_DIR = os.path.dirname(os.path.abspath(__file__))
-if not APP_DIR:
-    APP_DIR = os.getcwd()
+from pathlib import Path
 
+# Ensure repository root and src directory are in sys.path across all platforms and execution environments
+APP_DIR = str(Path(__file__).resolve().parent)
 SRC_DIR = os.path.join(APP_DIR, "src")
 
 if APP_DIR not in sys.path:
     sys.path.insert(0, APP_DIR)
 if SRC_DIR not in sys.path:
-    sys.path.insert(0, SRC_DIR)
+    sys.path.append(SRC_DIR)
 
 from flask import Flask, jsonify, request, render_template
 from typing import Dict, Any, List

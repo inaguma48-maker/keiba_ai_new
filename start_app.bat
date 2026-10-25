@@ -11,10 +11,18 @@ cd /d "%~dp0"
 
 set PORT=5001
 
-echo [1/2] Launching Python Flask Web Server on Port %PORT%...
+echo [1/2] Checking Python dependencies...
+python -m pip install -r requirements.txt > nul 2>&1
+if %ERRORLEVEL% NEQ 0 (
+    python3 -m pip install -r requirements.txt > nul 2>&1
+)
+
+echo [2/2] Launching Python Flask Web Server on Port %PORT%...
 echo.
 
 start "" "http://localhost:%PORT%"
+
+set PYTHONPATH=%~dp0;%~dp0src;%PYTHONPATH%
 
 python app.py
 
