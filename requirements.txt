@@ -1,0 +1,8 @@
+flask
+pandas
+numpy
+lightgbm
+scikit-learn
+beautifulsoup4
+requests
+pytest

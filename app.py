@@ -6,8 +6,11 @@ import os
 import sys
 
 # Ensure repository root and src directory are in sys.path across all platforms
-APP_DIR = os.path.abspath(os.path.dirname(__file__))
-SRC_DIR = os.path.abspath(os.path.join(APP_DIR, "src"))
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+if not APP_DIR:
+    APP_DIR = os.getcwd()
+
+SRC_DIR = os.path.join(APP_DIR, "src")
 
 if APP_DIR not in sys.path:
     sys.path.insert(0, APP_DIR)
