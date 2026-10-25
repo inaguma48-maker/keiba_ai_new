@@ -11,10 +11,10 @@ from pathlib import Path
 APP_DIR = str(Path(__file__).resolve().parent)
 SRC_DIR = os.path.join(APP_DIR, "src")
 
+if SRC_DIR not in sys.path:
+    sys.path.insert(0, SRC_DIR)
 if APP_DIR not in sys.path:
     sys.path.insert(0, APP_DIR)
-if SRC_DIR not in sys.path:
-    sys.path.append(SRC_DIR)
 
 from flask import Flask, jsonify, request, render_template
 from typing import Dict, Any, List
@@ -27,12 +27,17 @@ try:
     from src.jra_importer import parse_jra_text, fetch_and_parse_jra_url, fetch_this_weeks_jra_races
     from src.db import init_db, save_race, get_race_by_id, list_all_races
 except (ImportError, ModuleNotFoundError):
-    from models import RaceInfo, HorseEntry
-    from data import get_sample_races, generate_synthetic_historical_data
-    from predictor import HorseRacePredictor
-    from strategy import calculate_betting_recommendations
-    from jra_importer import parse_jra_text, fetch_and_parse_jra_url, fetch_this_weeks_jra_races
-    from db import init_db, save_race, get_race_by_id, list_all_races
+    try:
+        from models import RaceInfo, HorseEntry
+        from data import get_sample_races, generate_synthetic_historical_data
+        from predictor import HorseRacePredictor
+        from strategy import calculate_betting_recommendations
+        from jra_importer import parse_jra_text, fetch_and_parse_jra_url, fetch_this_weeks_jra_races
+        from db import init_db, save_race, get_race_by_id, list_all_races
+    except (ImportError, ModuleNotFoundError) as e:
+        print(f"[ERROR] Required modules in 'src/' folder could not be loaded: {e}")
+        print(f"[ERROR] Please ensure 'c:\\app\\jules_keiba\\src' directory exists and contains models.py, data.py, predictor.py, strategy.py, jra_importer.py, db.py")
+        sys.exit(1)
 
 app = Flask(__name__)
 predictor = HorseRacePredictor()
