@@ -6,10 +6,7 @@ import numpy as np
 import pandas as pd
 from typing import List, Dict, Any, Tuple
 
-try:
-    from src.models import HorseEntry, RaceInfo
-except ModuleNotFoundError:
-    from models import HorseEntry, RaceInfo
+from .models import HorseEntry, RaceInfo
 
 TRACK_CONDITIONS = {"良": 1.0, "稍重": 0.9, "重": 0.8, "不良": 0.7}
 WEATHER_TYPES = ["晴", "曇", "雨"]

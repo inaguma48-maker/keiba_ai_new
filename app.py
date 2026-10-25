@@ -5,30 +5,20 @@ Flask API Web Application for Horse Racing AI Prediction System.
 import os
 import sys
 
-# Ensure repository root and src directory are in sys.path across all platforms
+# Ensure repository root is in sys.path across all platforms
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
-SRC_DIR = os.path.join(APP_DIR, "src")
-for p in (APP_DIR, SRC_DIR):
-    if p not in sys.path:
-        sys.path.insert(0, p)
+if APP_DIR not in sys.path:
+    sys.path.insert(0, APP_DIR)
 
 from flask import Flask, jsonify, request, render_template
 from typing import Dict, Any, List
 
-try:
-    from src.models import RaceInfo, HorseEntry
-    from src.data import get_sample_races, generate_synthetic_historical_data
-    from src.predictor import HorseRacePredictor
-    from src.strategy import calculate_betting_recommendations
-    from src.jra_importer import parse_jra_text, fetch_and_parse_jra_url, fetch_this_weeks_jra_races
-    from src.db import init_db, save_race, get_race_by_id, list_all_races
-except ModuleNotFoundError:
-    from models import RaceInfo, HorseEntry
-    from data import get_sample_races, generate_synthetic_historical_data
-    from predictor import HorseRacePredictor
-    from strategy import calculate_betting_recommendations
-    from jra_importer import parse_jra_text, fetch_and_parse_jra_url, fetch_this_weeks_jra_races
-    from db import init_db, save_race, get_race_by_id, list_all_races
+from src.models import RaceInfo, HorseEntry
+from src.data import get_sample_races, generate_synthetic_historical_data
+from src.predictor import HorseRacePredictor
+from src.strategy import calculate_betting_recommendations
+from src.jra_importer import parse_jra_text, fetch_and_parse_jra_url, fetch_this_weeks_jra_races
+from src.db import init_db, save_race, get_race_by_id, list_all_races
 
 app = Flask(__name__)
 predictor = HorseRacePredictor()

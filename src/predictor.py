@@ -11,12 +11,8 @@ from typing import List, Dict, Any, Tuple
 from lightgbm import LGBMClassifier
 from sklearn.ensemble import RandomForestClassifier
 
-try:
-    from src.models import RaceInfo, HorseEntry
-    from src.data import generate_synthetic_historical_data, extract_features
-except ModuleNotFoundError:
-    from models import RaceInfo, HorseEntry
-    from data import generate_synthetic_historical_data, extract_features
+from .models import RaceInfo, HorseEntry
+from .data import generate_synthetic_historical_data, extract_features
 
 FEATURE_COLUMNS = [
     "age", "weight", "impost", "impost_ratio", "past_speed_rating",
