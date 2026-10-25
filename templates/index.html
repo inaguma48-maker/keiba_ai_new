@@ -246,6 +246,19 @@
                         <!-- Canvas -->
                         <canvas id="race-canvas" width="800" height="420" class="w-100 shadow-inner" style="max-height: 440px; object-fit: cover; background: #8da182;"></canvas>
 
+                        <!-- Left Overlay: Dynamic Live Top 5 Leaderboard -->
+                        <div class="position-absolute top-0 start-0 m-3 mt-5 z-3 text-start" style="pointer-events: none; width: 180px;">
+                            <div class="bg-black bg-opacity-75 p-2 rounded-3 border border-secondary shadow-lg backdrop-blur">
+                                <div class="text-warning fw-bold fs-7 mb-1 pb-1 border-bottom border-secondary d-flex justify-content-between align-items-center">
+                                    <span><i class="fa-solid fa-ranking-star me-1"></i>順位 (Live)</span>
+                                    <span id="sim-running-phase" class="badge bg-danger fs-8">序盤</span>
+                                </div>
+                                <div id="sim-top5-leaderboard" class="d-flex flex-column gap-1 font-monospace">
+                                    <!-- Top 5 runners inserted dynamically -->
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Bottom Left Stylized Big Rank Display (e.g. "1 / 18") -->
                         <div class="position-absolute bottom-0 start-0 m-3 z-3 text-start" style="pointer-events: none;">
                             <div class="d-flex align-items-baseline">
@@ -254,11 +267,26 @@
                             </div>
                         </div>
 
-                        <!-- Skill / Trigger Popup Banner (Top Right Game Skill Notice) -->
+                        <!-- Skill / Trigger Popup Banner (Game Skill Notice) -->
                         <div id="sim-skill-popup" class="position-absolute top-0 end-0 m-4 me-3 mt-5 z-3 d-none animate-slide-left">
-                            <div class="bg-white text-dark fw-bold px-3 py-2 rounded-pill shadow-lg border border-warning d-flex align-items-center gap-2">
+                            <div class="bg-black bg-opacity-85 text-warning fw-bold px-3 py-2 rounded-4 shadow-lg border border-warning d-flex align-items-center gap-2" style="backdrop-filter: blur(4px);">
                                 <span class="badge bg-warning text-dark rounded-circle p-2"><i class="fa-solid fa-bolt fs-6"></i></span>
-                                <span id="sim-skill-text" class="fs-7 text-dark fw-bold">【脚質: 差し】ラストスパート発動！</span>
+                                <div>
+                                    <div id="sim-skill-title" class="fs-8 text-white-50">ウマ娘固有スキル発動！</div>
+                                    <div id="sim-skill-text" class="fs-7 text-warning fw-bold">【脚質: 差し】ラストスパート発動！</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Goal Victory Celebration Banner -->
+                        <div id="sim-goal-banner" class="position-absolute top-50 start-50 translate-middle z-3 d-none text-center">
+                            <div class="bg-black bg-opacity-90 p-4 rounded-4 border border-3 border-warning shadow-lg text-white" style="min-width: 320px; backdrop-filter: blur(8px);">
+                                <div class="badge bg-danger fs-6 px-3 py-2 mb-2 animate-bounce">🏁 GOAL IN !!</div>
+                                <h2 class="text-warning fw-black mb-1" id="sim-winner-name">1番 ウマ娘名</h2>
+                                <p class="text-light small mb-3" id="sim-winner-sub">見事なラストスパートで1着フィニッシュ！</p>
+                                <button class="btn btn-warning btn-sm fw-bold rounded-pill px-4 text-dark" id="btn-modal-close-sim">
+                                    <i class="fa-solid fa-check me-1"></i> 予想結果を確認
+                                </button>
                             </div>
                         </div>
 

@@ -21,10 +21,23 @@ document.addEventListener("DOMContentLoaded", () => {
     const simTotalCount = document.getElementById("sim-total-count");
     const simSkillPopup = document.getElementById("sim-skill-popup");
     const simSkillText = document.getElementById("sim-skill-text");
+    const simSkillTitle = document.getElementById("sim-skill-title");
     const simCommentaryHeadline = document.getElementById("sim-commentary-headline");
     const simCommentarySub = document.getElementById("sim-commentary-sub");
     const topProgressFill = document.getElementById("top-progress-fill");
     const topHorsesTrack = document.getElementById("top-horses-track");
+    const simTop5Leaderboard = document.getElementById("sim-top5-leaderboard");
+    const simRunningPhase = document.getElementById("sim-running-phase");
+    const simGoalBanner = document.getElementById("sim-goal-banner");
+    const simWinnerName = document.getElementById("sim-winner-name");
+    const simWinnerSub = document.getElementById("sim-winner-sub");
+    const btnModalCloseSim = document.getElementById("btn-modal-close-sim");
+
+    if (btnModalCloseSim) {
+        btnModalCloseSim.addEventListener("click", () => {
+            if (simGoalBanner) simGoalBanner.classList.add("d-none");
+        });
+    }
 
     // Standard JRA Cap Colors (8 Waku colors)
     const CAP_COLORS = [
@@ -79,16 +92,19 @@ document.addEventListener("DOMContentLoaded", () => {
         const totalRunners = simPredictions.length || 18;
         if (simTotalCount) simTotalCount.textContent = totalRunners;
 
-        // Build Runners
+        // Build Runners with Running Styles (逃げ, 先行, 差し, 追込)
+        const styles = ["逃げ", "先行", "差し", "追込"];
         simRunners = simPredictions.map((p, idx) => {
             const baseProb = p.win_probability || (0.15 - idx * 0.01);
             const odds = p.odds || 5.0;
             const speedRating = (1 / odds) * 50 + (baseProb * 80);
+            const style = styles[idx % styles.length];
 
             return {
                 horse_number: p.horse_number,
                 horse_name: p.horse_name,
                 jockey_name: p.jockey_name,
+                running_style: style,
                 win_probability: baseProb,
                 speedRating: speedRating,
                 currentDist: 0,
@@ -101,6 +117,7 @@ document.addEventListener("DOMContentLoaded", () => {
             };
         });
 
+        if (simGoalBanner) simGoalBanner.classList.add("d-none");
         updateSimulationUI();
         drawUmamusumeTrack();
         if (simCommentaryHeadline) simCommentaryHeadline.textContent = `さあ、誰が最初に仕掛けるのか！？`;
@@ -274,30 +291,42 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!leader) return;
 
         if (progress < 0.08) {
+            if (simRunningPhase) simRunningPhase.textContent = "スタート";
             if (simCommentaryHeadline) simCommentaryHeadline.textContent = `さあ、全馬一斉に綺麗にスタートを切りました！`;
             if (simCommentarySub) simCommentarySub.textContent = `好スタートを切ったのは${leader.horse_number}番 ${leader.horse_name}！`;
         } else if (progress < 0.35) {
+            if (simRunningPhase) simRunningPhase.textContent = "向正面";
             if (simCommentaryHeadline) simCommentaryHeadline.textContent = `さあ、誰が最初に仕掛けるのか！？`;
             const secName = second ? `${second.horse_number}番 ${second.horse_name}` : "後続集団";
             if (simCommentarySub) simCommentarySub.textContent = `${secName} 2番手につけ、様子を見守る！`;
         } else if (progress < 0.70) {
+            if (simRunningPhase) simRunningPhase.textContent = "第3~4コーナー";
             if (simCommentaryHeadline) simCommentaryHeadline.textContent = `【第3〜4コーナー】各馬位置取りを激しく争う！`;
             if (simCommentarySub) simCommentarySub.textContent = `先頭${leader.horse_name}がしっかり手応えを残して直線を迎える！`;
 
             // Skill trigger demo at mid race
             if (!leader.hasTriggeredSkill && simSkillPopup && simSkillText) {
                 leader.hasTriggeredSkill = true;
-                simSkillText.textContent = `【脚質: 逃げ】${leader.horse_name} 先頭キープ発動！`;
+                if (simSkillTitle) simSkillTitle.textContent = `【固有スキル】${leader.horse_name}`;
+                simSkillText.textContent = `【脚質: ${leader.running_style || "逃げ"}】全開スパート発動！`;
                 simSkillPopup.classList.remove("d-none");
-                setTimeout(() => simSkillPopup.classList.add("d-none"), 2500);
+                setTimeout(() => simSkillPopup.classList.add("d-none"), 2800);
             }
-        } else if (progress < 0.95) {
+        } else if (progress < 0.98) {
+            if (simRunningPhase) simRunningPhase.textContent = "直線叩き合い";
             if (simCommentaryHeadline) simCommentaryHeadline.textContent = `【最後の直線！】叩き合い！ラストスパート！`;
             const secName = second ? `外から${second.horse_name}が追撃！` : "";
             if (simCommentarySub) simCommentarySub.textContent = `${leader.horse_name}が粘る！${secName} 残り200m！`;
         } else {
+            if (simRunningPhase) simRunningPhase.textContent = "ゴールイン";
             if (simCommentaryHeadline) simCommentaryHeadline.textContent = `【ゴールイン！】圧巻の勝負を見せた！`;
             if (simCommentarySub) simCommentarySub.textContent = `栄光の1着は${leader.horse_number}番 ${leader.horse_name}！AI予想通りの見事な勝利！`;
+
+            if (simGoalBanner && simWinnerName && simWinnerSub) {
+                simWinnerName.textContent = `${leader.horse_number}番 ${leader.horse_name}`;
+                simWinnerSub.textContent = `騎手: ${leader.jockey_name} | AI勝率: ${(leader.win_probability * 100).toFixed(1)}% の快勝！`;
+                simGoalBanner.classList.remove("d-none");
+            }
         }
     }
 
@@ -311,6 +340,24 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const leader = simRunners[0];
         const second = simRunners[1];
+
+        // Update Live Top 5 Overlay
+        if (simTop5Leaderboard) {
+            const top5 = simRunners.slice(0, 5);
+            simTop5Leaderboard.innerHTML = top5.map((r, idx) => {
+                const gapText = idx === 0 ? "先頭" : `${((leader.currentDist - r.currentDist) * 120).toFixed(1)}m差`;
+                return `
+                    <div class="d-flex align-items-center justify-content-between fs-8">
+                        <div class="d-flex align-items-center gap-1">
+                            <span class="badge ${idx === 0 ? "bg-warning text-dark" : idx === 1 ? "bg-light text-dark" : idx === 2 ? "bg-secondary" : "bg-dark text-white"}" style="width:16px; height:16px; padding:2px 0; text-center; display:inline-block; line-height:12px;">${idx + 1}</span>
+                            <span class="badge" style="background:${r.color.bg}; color:${r.color.text}; border:1px solid #fff; font-size:9px;">${r.horse_number}</span>
+                            <span class="text-truncate text-white fw-bold" style="max-width: 75px;">${r.horse_name}</span>
+                        </div>
+                        <span class="text-warning-emphasis fs-8 opacity-75">${gapText}</span>
+                    </div>
+                `;
+            }).join("");
+        }
 
         // Update Big Rank display for the predicted winner (#1 selection or user focus)
         if (simBigRank) {
