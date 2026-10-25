@@ -2,6 +2,12 @@
 Flask API Web Application for Horse Racing AI Prediction System.
 """
 
+import os
+import sys
+
+# Ensure repository root is in sys.path for module resolution across platforms
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+
 from flask import Flask, jsonify, request, render_template
 from typing import Dict, Any, List
 
