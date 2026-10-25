@@ -5,18 +5,37 @@ Flask API Web Application for Horse Racing AI Prediction System.
 import os
 import sys
 
-# Ensure repository root is in sys.path for module resolution across platforms
-sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+# Ensure repository root is at the head of sys.path before any relative module imports
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+if APP_DIR not in sys.path:
+    sys.path.insert(0, APP_DIR)
 
 from flask import Flask, jsonify, request, render_template
 from typing import Dict, Any, List
 
-from src.models import RaceInfo, HorseEntry
-from src.data import get_sample_races, generate_synthetic_historical_data
-from src.predictor import HorseRacePredictor
-from src.strategy import calculate_betting_recommendations
-from src.jra_importer import parse_jra_text, fetch_and_parse_jra_url, fetch_this_weeks_jra_races
-from src.db import init_db, save_race, get_race_by_id, list_all_races
+try:
+    from src.models import RaceInfo, HorseEntry
+    from src.data import get_sample_races, generate_synthetic_historical_data
+    from src.predictor import HorseRacePredictor
+    from src.strategy import calculate_betting_recommendations
+    from src.jra_importer import parse_jra_text, fetch_and_parse_jra_url, fetch_this_weeks_jra_races
+    from src.db import init_db, save_race, get_race_by_id, list_all_races
+except ModuleNotFoundError:
+    # Fallback for execution environments where current dir is parent or non-standard Windows paths
+    import models
+    import data
+    import predictor
+    import strategy
+    import jra_importer
+    import db
+    RaceInfo, HorseEntry = models.RaceInfo, models.HorseEntry
+    get_sample_races, generate_synthetic_historical_data = data.get_sample_races, data.generate_synthetic_historical_data
+    HorseRacePredictor = predictor.HorseRacePredictor
+    calculate_betting_recommendations = strategy.calculate_betting_recommendations
+    parse_jra_text = jra_importer.parse_jra_text
+    fetch_and_parse_jra_url = jra_importer.fetch_and_parse_jra_url
+    fetch_this_weeks_jra_races = jra_importer.fetch_this_weeks_jra_races
+    init_db, save_race, get_race_by_id, list_all_races = db.init_db, db.save_race, db.get_race_by_id, db.list_all_races
 
 app = Flask(__name__)
 predictor = HorseRacePredictor()
