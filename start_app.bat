@@ -10,6 +10,7 @@ echo.
 cd /d "%~dp0"
 
 set PORT=5001
+set FLASK_RUN_PORT=5001
 
 echo [1/2] Checking Python dependencies...
 python -m pip install -r requirements.txt > nul 2>&1
