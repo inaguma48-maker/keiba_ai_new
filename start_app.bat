@@ -9,10 +9,12 @@ echo.
 
 cd /d "%~dp0"
 
-echo [1/2] Launching Python Flask Web Server...
+set PORT=5001
+
+echo [1/2] Launching Python Flask Web Server on Port %PORT%...
 echo.
 
-start "" "http://localhost:5000"
+start "" "http://localhost:%PORT%"
 
 python app.py
 
