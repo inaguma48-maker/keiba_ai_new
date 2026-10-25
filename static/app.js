@@ -1,7 +1,359 @@
 document.addEventListener("DOMContentLoaded", () => {
     let currentRace = null;
+    let simPredictions = [];
+    let simAnimationFrame = null;
+    let simIsRunning = false;
+    let simProgress = 0; // 0 to 100%
+    let simRunners = [];
 
     const selectRace = document.getElementById("select-race");
+    const canvas = document.getElementById("race-canvas");
+    const ctx = canvas ? canvas.getContext("2d") : null;
+    const btnStartSim = document.getElementById("btn-start-sim");
+    const btnResetSim = document.getElementById("btn-reset-sim");
+    const simTimer = document.getElementById("sim-timer");
+    const simLeaderName = document.getElementById("sim-leader-name");
+    const simCommentary = document.getElementById("sim-commentary");
+    const simTimeBadge = document.getElementById("sim-time-badge");
+    const simRaceTitle = document.getElementById("sim-race-title");
+
+    // Standard JRA Helmet / Cap Colors by Waku / Horse Number
+    const CAP_COLORS = [
+        { bg: "#ffffff", text: "#000000" }, // 1: White
+        { bg: "#222222", text: "#ffffff" }, // 2: Black
+        { bg: "#e63946", text: "#ffffff" }, // 3: Red
+        { bg: "#1d3557", text: "#ffffff" }, // 4: Blue
+        { bg: "#ffb703", text: "#000000" }, // 5: Yellow
+        { bg: "#2a9d8f", text: "#ffffff" }, // 6: Green
+        { bg: "#f4a261", text: "#000000" }, // 7: Orange
+        { bg: "#ffb3c6", text: "#000000" }  // 8: Pink
+    ];
+
+    function getCapColor(num) {
+        const idx = (Math.max(1, num) - 1) % CAP_COLORS.length;
+        return CAP_COLORS[idx];
+    }
+
+    // Initialize TV Race Simulation State
+    function initRaceSimulation(race, predictions) {
+        if (!canvas || !ctx) return;
+        currentRace = race;
+        simPredictions = predictions || [];
+
+        if (simRaceTitle && race) {
+            simRaceTitle.innerHTML = `<i class="fa-solid fa-tv me-2 text-warning"></i>${race.race_name} (${race.track_name} ${race.surface_type}${race.distance}m)`;
+        }
+
+        simProgress = 0;
+        simIsRunning = false;
+        if (simAnimationFrame) {
+            cancelAnimationFrame(simAnimationFrame);
+            simAnimationFrame = null;
+        }
+
+        if (btnStartSim) {
+            btnStartSim.innerHTML = '<i class="fa-solid fa-play me-1"></i> 実況中継スタート';
+            btnStartSim.classList.replace("btn-danger", "btn-warning");
+            btnStartSim.classList.replace("text-white", "text-dark");
+        }
+
+        // Build Runners from predictions or horses
+        simRunners = simPredictions.map((p, idx) => {
+            const baseProb = p.win_probability || (0.15 - idx * 0.01);
+            const odds = p.odds || 5.0;
+            const speedRating = (1 / odds) * 50 + (baseProb * 80);
+
+            return {
+                horse_number: p.horse_number,
+                horse_name: p.horse_name,
+                jockey_name: p.jockey_name,
+                win_probability: baseProb,
+                speedRating: speedRating,
+                currentDist: 0,
+                laneOffset: (idx % 4) * 6 - 9, // staggered track lanes
+                color: getCapColor(p.horse_number),
+                rank: idx + 1
+            };
+        });
+
+        updateSimulationUI();
+        drawRaceTrack();
+        if (simCommentary) {
+            simCommentary.textContent = `出走準備完了！「実況中継スタート」を押すとAIライブ熱血実況が始まります！`;
+        }
+    }
+
+    // Convert 0..1 distance progress along oval track to Canvas (x, y) coordinates
+    function getTrackPos(progress, laneOffset) {
+        // Oval Dimensions
+        const cx = 380, cy = 160;
+        const rx = 240 + laneOffset; // horizontal radius
+        const ry = 90 + laneOffset;  // vertical radius
+
+        // Counter-clockwise race oval movement starting from bottom right (Start Gate)
+        // startAngle = 0 (bottom right home stretch) -> theta from 0 to 2*PI
+        const angle = progress * Math.PI * 2;
+
+        const x = cx + rx * Math.cos(angle - Math.PI / 2);
+        const y = cy + ry * Math.sin(angle - Math.PI / 2);
+
+        return { x, y, angle };
+    }
+
+    // Draw Realistic 2D Race Track
+    function drawRaceTrack() {
+        if (!ctx) return;
+
+        // Background
+        ctx.fillStyle = "#121824";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Turf Track Outer Oval
+        ctx.fillStyle = "#1e4d2b";
+        ctx.beginPath();
+        ctx.ellipse(380, 160, 275, 125, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Dirt Track Inner Oval Surface
+        ctx.fillStyle = "#705335";
+        ctx.beginPath();
+        ctx.ellipse(380, 160, 255, 105, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Inner Turf Field Center
+        ctx.fillStyle = "#0e2e17";
+        ctx.beginPath();
+        ctx.ellipse(380, 160, 185, 55, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Rails (Inner & Outer White Lines)
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.ellipse(380, 160, 260, 110, 0, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.strokeStyle = "#405d47";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.ellipse(380, 160, 190, 60, 0, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Finish Line Checkered Strip (Top Straight / Finishing Stretch)
+        ctx.save();
+        ctx.strokeStyle = "#ff4d4d";
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(380, 50);
+        ctx.lineTo(380, 100);
+        ctx.stroke();
+
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 11px sans-serif";
+        ctx.fillText("🏁 FINISH", 350, 42);
+        ctx.restore();
+
+        // Start Gate Marker
+        const startPos = getTrackPos(0, 0);
+        ctx.save();
+        ctx.strokeStyle = "#ffc107";
+        ctx.lineWidth = 4;
+        ctx.strokeRect(startPos.x - 12, startPos.y - 18, 24, 36);
+        ctx.fillStyle = "#ffc107";
+        ctx.font = "bold 10px sans-serif";
+        ctx.fillText("START ゲート", startPos.x - 28, startPos.y + 32);
+        ctx.restore();
+
+        // Draw Slope / Feature Callout
+        ctx.fillStyle = "rgba(255, 255, 255, 0.15)";
+        ctx.fillRect(250, 270, 260, 18);
+        ctx.fillStyle = "#e0e0e0";
+        ctx.font = "10px sans-serif";
+        ctx.fillText("▲ 直線急坂 (勾配 2.0m)", 310, 283);
+
+        // Draw Horses
+        if (simRunners.length > 0) {
+            // Sort by current distance so trailing horses are drawn first, leaders drawn on top
+            const sorted = [...simRunners].sort((a, b) => a.currentDist - b.currentDist);
+
+            sorted.forEach(runner => {
+                const pos = getTrackPos(runner.currentDist, runner.laneOffset);
+
+                // Draw Horse Badge / Helmet Circle
+                ctx.save();
+
+                // Shadow
+                ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+                ctx.beginPath();
+                ctx.arc(pos.x + 2, pos.y + 3, 11, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Helmet Circle
+                ctx.fillStyle = runner.color.bg;
+                ctx.beginPath();
+                ctx.arc(pos.x, pos.y, 11, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = "#ffffff";
+                ctx.stroke();
+
+                // Horse Number Text
+                ctx.fillStyle = runner.color.text;
+                ctx.font = "bold 11px sans-serif";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText(runner.horse_number, pos.x, pos.y + 0.5);
+
+                // Lead Horse Banner Overlay
+                if (runner.rank === 1) {
+                    ctx.fillStyle = "#ffc107";
+                    ctx.fillRect(pos.x - 28, pos.y - 28, 56, 14);
+                    ctx.fillStyle = "#000000";
+                    ctx.font = "bold 9px sans-serif";
+                    ctx.fillText(runner.horse_name.substring(0, 5), pos.x, pos.y - 21);
+                }
+
+                ctx.restore();
+            });
+        }
+    }
+
+    // Play-by-Play TV Broadcast Commentary Logic
+    function updateCommentary(leader, progress, elapsedSec) {
+        if (!simCommentary || !leader) return;
+
+        let line = "";
+        if (progress < 0.05) {
+            line = `【スタート！】全馬一斉にゲートが開きました！綺麗にスタートを切りました！`;
+        } else if (progress < 0.25) {
+            line = `【第1〜2コーナー】先頭に立ったのは${leader.horse_number}番 ${leader.horse_name}！好スタートからレースを引っぱります！`;
+        } else if (progress < 0.55) {
+            line = `【向正面】ペースは順調！${leader.horse_number}番 ${leader.horse_name}が1馬身リード！後続もじわじわと位置を上げてくる！`;
+        } else if (progress < 0.80) {
+            line = `【第3〜4コーナー】さあ各馬スパート開始！${leader.horse_number}番 ${leader.horse_name}が先頭をキープして最後の直線へ向かいます！`;
+        } else if (progress < 0.95) {
+            const second = simRunners.find(r => r.rank === 2);
+            const secondText = second ? `外から${second.horse_number}番 ${second.horse_name}が猛追！` : "";
+            line = `【最後の直線！】激しい叩き合い！${leader.horse_name}が粘る！${secondText}残り200m！`;
+        } else {
+            line = `【ゴールイン！】勝ったのは${leader.horse_number}番 ${leader.horse_name}！AIの緻密な予想通りの圧倒的な走りで見事に勝利を収めました！`;
+        }
+
+        if (simCommentary.textContent !== line) {
+            simCommentary.textContent = line;
+            speakText(line);
+        }
+    }
+
+    // Optional Web Speech API TTS for TV Broadcast feel
+    let lastSpokenText = "";
+    function speakText(text) {
+        if (!('speechSynthesis' in window) || text === lastSpokenText) return;
+        try {
+            window.speechSynthesis.cancel(); // stop ongoing speech
+            const cleanText = text.replace(/【.*?】/g, "");
+            const utterance = new SpeechSynthesisUtterance(cleanText);
+            utterance.lang = "ja-JP";
+            utterance.rate = 1.2; // lively Japanese commentary pace
+            utterance.pitch = 1.1;
+            lastSpokenText = text;
+            window.speechSynthesis.speak(utterance);
+        } catch (e) {
+            // ignore speech errors gracefully
+        }
+    }
+
+    // Update Simulation Time & Leaderboard Overlay
+    function updateSimulationUI() {
+        if (simRunners.length === 0) return;
+
+        // Sort runners by current progress
+        simRunners.sort((a, b) => b.currentDist - a.currentDist);
+        simRunners.forEach((r, idx) => r.rank = idx + 1);
+
+        const leader = simRunners[0];
+        const elapsedSec = (simProgress * 100 * 0.95).toFixed(1);
+
+        if (simTimer) {
+            const min = Math.floor(elapsedSec / 60).toString().padStart(2, "0");
+            const sec = (elapsedSec % 60).toFixed(1).padStart(4, "0");
+            simTimer.textContent = `${min}:${sec}`;
+        }
+
+        if (simLeaderName && leader) {
+            simLeaderName.textContent = `先頭: ${leader.horse_number}番 ${leader.horse_name}`;
+        }
+
+        if (simTimeBadge) {
+            simTimeBadge.textContent = `${elapsedSec}秒`;
+        }
+
+        updateCommentary(leader, simProgress, elapsedSec);
+    }
+
+    // Main Animation Loop
+    function animateRace() {
+        if (!simIsRunning) return;
+
+        simProgress += 0.0025; // Speed factor (~12-15 seconds full race)
+
+        // Update each runner according to their speed & small random variance
+        simRunners.forEach((runner, idx) => {
+            const staminaFactor = 1.0 + (runner.speedRating / 100.0) * 0.15;
+            const variance = (Math.random() - 0.48) * 0.0008;
+            runner.currentDist = Math.min(1.0, runner.currentDist + 0.0025 * staminaFactor + variance);
+        });
+
+        updateSimulationUI();
+        drawRaceTrack();
+
+        if (simProgress >= 1.0) {
+            simIsRunning = false;
+            simProgress = 1.0;
+            if (btnStartSim) {
+                btnStartSim.innerHTML = '<i class="fa-solid fa-rotate-right me-1"></i> もう一度再生';
+                btnStartSim.classList.replace("btn-danger", "btn-warning");
+            }
+            return;
+        }
+
+        simAnimationFrame = requestAnimationFrame(animateRace);
+    }
+
+    // Start / Pause Simulation Toggle
+    if (btnStartSim) {
+        btnStartSim.addEventListener("click", () => {
+            if (simProgress >= 1.0) {
+                simProgress = 0;
+                simRunners.forEach(r => r.currentDist = 0);
+            }
+
+            simIsRunning = !simIsRunning;
+
+            if (simIsRunning) {
+                btnStartSim.innerHTML = '<i class="fa-solid fa-pause me-1"></i> 一時停止';
+                btnStartSim.classList.replace("btn-warning", "btn-danger");
+                btnStartSim.classList.replace("text-dark", "text-white");
+                animateRace();
+            } else {
+                btnStartSim.innerHTML = '<i class="fa-solid fa-play me-1"></i> 再開';
+                btnStartSim.classList.replace("btn-danger", "btn-warning");
+                btnStartSim.classList.replace("text-white", "text-dark");
+                if (simAnimationFrame) cancelAnimationFrame(simAnimationFrame);
+            }
+        });
+    }
+
+    // Reset Simulation
+    if (btnResetSim) {
+        btnResetSim.addEventListener("click", () => {
+            if (currentRace) {
+                initRaceSimulation(currentRace, simPredictions);
+            }
+        });
+    }
+
+    // Handle one-click weekly JRA data fetch
     const btnLoadRace = document.getElementById("btn-load-race");
     const btnRecalculate = document.getElementById("btn-recalculate");
     const btnRetrain = document.getElementById("btn-retrain");
@@ -50,6 +402,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 confidenceContainer.classList.remove("d-none");
                 displayConfidence.textContent = `${firstResult.recommendations.confidence_score}%`;
                 btnRecalculate.classList.remove("d-none");
+
+                // Initialize race simulation engine
+                initRaceSimulation(firstResult.race, firstResult.predictions);
 
                 alert(`【成功】${data.message}\nドロップダウンから今週の全レース (${data.count}レース) を切替可能です。`);
             } else {
@@ -156,6 +511,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 confidenceContainer.classList.remove("d-none");
                 displayConfidence.textContent = `${result.recommendations.confidence_score}%`;
                 btnRecalculate.classList.remove("d-none");
+
+                // Initialize race simulation engine
+                initRaceSimulation(result.race, result.predictions);
 
                 // Refresh race selection dropdown with newly saved DB race
                 await loadRaces(result.race.race_id);
