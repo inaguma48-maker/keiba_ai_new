@@ -180,4 +180,20 @@ def retrain_model():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    import socket
+
+    port = int(os.environ.get("PORT", 5000))
+
+    def is_port_in_use(p):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            return s.connect_ex(('127.0.0.1', p)) == 0
+
+    if is_port_in_use(port):
+        print(f"Port {port} is already in use. Searching for an available port...")
+        for alt_port in range(5001, 5020):
+            if not is_port_in_use(alt_port):
+                port = alt_port
+                break
+
+    print(f"Starting server on http://localhost:{port}")
+    app.run(host="0.0.0.0", port=port, debug=True)
