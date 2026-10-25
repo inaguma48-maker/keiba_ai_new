@@ -10,7 +10,13 @@ import uuid
 from bs4 import BeautifulSoup
 from typing import Dict, Any, List, Optional
 
-from .models import RaceInfo, HorseEntry
+try:
+    from .models import RaceInfo, HorseEntry
+except (ImportError, ModuleNotFoundError):
+    try:
+        from src.models import RaceInfo, HorseEntry
+    except ModuleNotFoundError:
+        from models import RaceInfo, HorseEntry
 
 JRA_TRACKS = ["東京", "中山", "阪神", "京都", "中京", "新潟", "福島", "小倉", "札幌", "函館"]
 

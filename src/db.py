@@ -7,7 +7,13 @@ import json
 import os
 from typing import List, Optional, Dict, Any
 
-from .models import RaceInfo, HorseEntry
+try:
+    from .models import RaceInfo, HorseEntry
+except (ImportError, ModuleNotFoundError):
+    try:
+        from src.models import RaceInfo, HorseEntry
+    except ModuleNotFoundError:
+        from models import RaceInfo, HorseEntry
 
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "racing_app.db")
 
