@@ -1,12 +1,11 @@
 document.addEventListener("DOMContentLoaded", () => {
-    // Original anime/uma character pool generator
-    const ORIGINAL_NAMES = [
-        "アグネスクラウン", "トウカイビクトリー", "シンボリスピリッツ", "サイレンスホープ",
-        "メジロファンタジー", "スペシャルダッシュ", "ゴールドシップス", "ダイワロマンス",
-        "ウオッカシャイン", "グラスウィナー", "エルコンドルパス", "テイエムスター",
-        "マヤノトップガン", "ミホノブルボン", "ライスシャワー", "ビワハヤヒデ",
-        "ナリタブライアン", "サクラローレル"
-    ];
+    let currentRace = null;
+    let simPredictions = [];
+    let simAnimationFrame = null;
+    let simIsRunning = false;
+    let simProgress = 0; // 0.0 to 1.0
+    let simRunners = [];
+    let simSpeedMultiplier = 1.0;
 
     const CAP_COLORS = [
         { bg: "#ffffff", text: "#000000", border: "#cccccc" }, // 1: White
@@ -21,39 +20,32 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const STYLES = ["逃げ", "先行", "差し", "追込"];
 
-    let runners = [];
-    let currentRace = {
-        title: "第11回 オリジン記念 (GI / 芝2000m)",
-        distance: 2000
-    };
-
-    let simAnimationFrame = null;
-    let simIsRunning = false;
-    let simProgress = 0; // 0.0 to 1.0
-    let simSpeedMultiplier = 1.0;
+    function getCapColor(num) {
+        return CAP_COLORS[(Math.max(1, num) - 1) % CAP_COLORS.length];
+    }
 
     // DOM Elements
-    const screenRacecard = document.getElementById("screen-racecard");
-    const screenRace = document.getElementById("screen-race");
-    const screenResult = document.getElementById("screen-result");
+    const selectRace = document.getElementById("select-race");
+    const btnLoadRace = document.getElementById("btn-load-race");
+    const btnFetchWeekly = document.getElementById("btn-fetch-weekly");
+    const btnFetchWeeklySide = document.getElementById("btn-fetch-weekly-side");
+    const formImportJra = document.getElementById("form-import-jra");
+    const btnRecalculate = document.getElementById("btn-recalculate");
+    const btnRetrain = document.getElementById("btn-retrain");
 
-    const tbodyRacecardRunners = document.getElementById("tbody-racecard-runners");
-    const tbodyResults = document.getElementById("tbody-results");
-
-    const btnShuffleRunners = document.getElementById("btn-shuffle-runners");
-    const btnGotoRace = document.getElementById("btn-goto-race");
-    const btnBackRacecard = document.getElementById("btn-back-racecard");
-    const btnBackToRacecard = document.getElementById("btn-back-to-racecard");
-    const btnRestartSim = document.getElementById("btn-restart-sim");
-
-    const btnSpeed1x = document.getElementById("btn-speed-1x");
-    const btnSpeed2x = document.getElementById("btn-speed-2x");
-    const btnSpeedSkip = document.getElementById("btn-speed-skip");
-    const btnTogglePlay = document.getElementById("btn-toggle-play");
+    const displayRaceName = document.getElementById("display-race-name");
+    const displayRaceMeta = document.getElementById("display-race-meta");
+    const displayConfidence = document.getElementById("display-confidence");
+    const tbodyPredictions = document.getElementById("tbody-predictions");
 
     const canvas = document.getElementById("race-canvas");
     const ctx = canvas ? canvas.getContext("2d") : null;
 
+    const btnStartSim = document.getElementById("btn-start-sim");
+    const btnResetSim = document.getElementById("btn-reset-sim");
+    const btnSpeedSim = document.getElementById("btn-speed-sim");
+    const simSpeedText = document.getElementById("sim-speed-text");
+    const simRaceTitle = document.getElementById("sim-race-title");
     const simTimer = document.getElementById("sim-timer");
     const simLeaderName = document.getElementById("sim-leader-name");
     const simTop5Leaderboard = document.getElementById("sim-top5-leaderboard");
@@ -66,130 +58,60 @@ document.addEventListener("DOMContentLoaded", () => {
     const topProgressFill = document.getElementById("top-progress-fill");
     const topHorsesTrack = document.getElementById("top-horses-track");
 
-    const resultWinnerTitle = document.getElementById("result-winner-title");
-    const resultWinnerSub = document.getElementById("result-winner-sub");
-
-    // Get Waku / Cap Color
-    function getCapColor(num) {
-        return CAP_COLORS[(Math.max(1, num) - 1) % CAP_COLORS.length];
+    // Speed Multiplier Switcher
+    if (btnSpeedSim) {
+        btnSpeedSim.addEventListener("click", () => {
+            if (simSpeedMultiplier === 1.0) simSpeedMultiplier = 2.0;
+            else if (simSpeedMultiplier === 2.0) simSpeedMultiplier = 3.0;
+            else simSpeedMultiplier = 1.0;
+            if (simSpeedText) simSpeedText.textContent = `${simSpeedMultiplier.toFixed(1)}x`;
+        });
     }
 
-    // Generate Original Anime Uma-Musume Runners
-    function generateRunners(count = 18) {
-        const shuffledNames = [...ORIGINAL_NAMES].sort(() => Math.random() - 0.5);
-        runners = [];
+    // Initialize Simulation Engine
+    function initSimulation(race, predictions) {
+        if (!canvas || !ctx) return;
+        currentRace = race;
+        simPredictions = predictions || [];
 
-        for (let i = 1; i <= count; i++) {
-            const name = shuffledNames[i - 1] || `オリジナルウマ娘${i}号`;
-            const style = STYLES[(i - 1) % STYLES.length];
-            const speed = Math.floor(Math.random() * 25) + 75; // 75-100
-            const stamina = Math.floor(Math.random() * 25) + 75;
-            const power = Math.floor(Math.random() * 25) + 75;
-            const guts = Math.floor(Math.random() * 25) + 75;
-
-            // Calculate popularity & odds
-            const totalScore = speed * 1.2 + stamina * 1.0 + power * 0.9 + guts * 0.8;
-
-            runners.push({
-                horse_number: i,
-                horse_name: name,
-                running_style: style,
-                speed: speed,
-                stamina: stamina,
-                power: power,
-                guts: guts,
-                totalScore: totalScore,
-                color: getCapColor(i),
-                currentDist: 0,
-                xPos: 50,
-                yPos: 120 + (i % 6) * 35,
-                laneOffset: (i % 5) * 16 - 32,
-                rank: i,
-                hasTriggeredSkill: false
-            });
+        if (simRaceTitle && race) {
+            simRaceTitle.textContent = `${race.race_name} (${race.track_name} ${race.surface_type}${race.distance}m)`;
         }
 
-        // Sort score to set odds & popularity
-        const sorted = [...runners].sort((a, b) => b.totalScore - a.totalScore);
-        sorted.forEach((r, idx) => {
-            r.popularity = idx + 1;
-            r.odds = (1.8 + idx * 2.1 + Math.random() * 0.5).toFixed(1);
-        });
-
-        // Re-sort by horse_number
-        runners.sort((a, b) => a.horse_number - b.horse_number);
-        renderRacecard();
-    }
-
-    // Render Racecard Table
-    function renderRacecard() {
-        if (!tbodyRacecardRunners) return;
-        tbodyRacecardRunners.innerHTML = runners.map(r => {
-            const styleBadgeClass = r.running_style === "逃げ" ? "badge-style-nige" :
-                                    r.running_style === "先行" ? "badge-style-senko" :
-                                    r.running_style === "差し" ? "badge-style-sashi" : "badge-style-goi";
-
-            return `
-                <tr>
-                    <td class="text-center">
-                        <span class="badge rounded-circle p-2 shadow-sm" style="background:${r.color.bg}; color:${r.color.text}; border: 1px solid ${r.color.border}; font-size: 14px; width:28px; height:28px; display:inline-block; line-height:12px;">
-                            ${r.horse_number}
-                        </span>
-                    </td>
-                    <td>
-                        <div class="d-flex align-items-center gap-2">
-                            <div class="runner-avatar-box" style="background:${r.color.bg}; color:${r.color.text}; border-color:${r.color.border}">
-                                🏇
-                            </div>
-                            <div>
-                                <div class="fw-bold fs-6 text-white">${r.horse_name}</div>
-                                <div class="text-white-50 fs-8">オリジナル馬娘</div>
-                            </div>
-                        </div>
-                    </td>
-                    <td class="text-center">
-                        <span class="badge ${styleBadgeClass} px-2 py-1">${r.running_style}</span>
-                    </td>
-                    <td>
-                        <div class="d-flex flex-wrap gap-1 font-monospace">
-                            <span class="stat-badge text-warning"><i class="fa-solid fa-gauge-high me-1"></i>スピ ${r.speed}</span>
-                            <span class="stat-badge text-info"><i class="fa-solid fa-heart me-1"></i>スタ ${r.stamina}</span>
-                            <span class="stat-badge text-danger"><i class="fa-solid fa-dumbbell me-1"></i>パワ ${r.power}</span>
-                            <span class="stat-badge text-success"><i class="fa-solid fa-fire me-1"></i>根性 ${r.guts}</span>
-                        </div>
-                    </td>
-                    <td class="text-center">
-                        <div class="fw-bold text-warning">${r.popularity}番人気</div>
-                        <div class="text-white-50 small">${r.odds}倍</div>
-                    </td>
-                </tr>
-            `;
-        }).join("");
-    }
-
-    // Switch Screen
-    function switchScreen(targetScreen) {
-        [screenRacecard, screenRace, screenResult].forEach(s => s && s.classList.remove("active"));
-        if (targetScreen) targetScreen.classList.add("active");
-    }
-
-    // Initialize Race Simulation State
-    function initSimulation() {
         simProgress = 0;
         simIsRunning = false;
-        simSpeedMultiplier = 1.0;
-
-        runners.forEach(r => {
-            r.currentDist = 0;
-            r.hasTriggeredSkill = false;
-        });
-
-        if (btnTogglePlay) btnTogglePlay.innerHTML = '<i class="fa-solid fa-play me-1"></i> スタート';
-        if (btnSpeed1x) {
-            btnSpeed1x.classList.add("active");
-            btnSpeed2x.classList.remove("active");
-            btnSpeedSkip.classList.remove("active");
+        if (simAnimationFrame) {
+            cancelAnimationFrame(simAnimationFrame);
+            simAnimationFrame = null;
         }
+
+        if (btnStartSim) {
+            btnStartSim.innerHTML = '<i class="fa-solid fa-play me-1"></i> スタート';
+            btnStartSim.classList.replace("btn-danger", "btn-warning");
+            btnStartSim.classList.replace("text-white", "text-dark");
+        }
+
+        simRunners = simPredictions.map((p, idx) => {
+            const baseProb = p.win_probability || (0.15 - idx * 0.01);
+            const odds = p.odds || 5.0;
+            const speedRating = (1 / odds) * 50 + (baseProb * 80);
+
+            return {
+                horse_number: p.horse_number,
+                horse_name: p.horse_name,
+                jockey_name: p.jockey_name,
+                running_style: STYLES[idx % STYLES.length],
+                win_probability: baseProb,
+                speedRating: speedRating,
+                currentDist: 0,
+                xPos: 50,
+                yPos: 120 + (idx % 6) * 35,
+                laneOffset: (idx % 5) * 16 - 32,
+                color: getCapColor(p.horse_number),
+                rank: idx + 1,
+                hasTriggeredSkill: false
+            };
+        });
 
         updateSimulationUI();
         drawCanvasTrack();
@@ -243,8 +165,8 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         // Draw Runners
-        if (runners.length > 0) {
-            const sorted = [...runners].sort((a, b) => a.yPos - b.yPos);
+        if (simRunners.length > 0) {
+            const sorted = [...simRunners].sort((a, b) => a.yPos - b.yPos);
 
             sorted.forEach(runner => {
                 const relProgress = Math.max(0, Math.min(1.0, (runner.currentDist - simProgress * 0.85) / 0.2 + 0.3));
@@ -302,18 +224,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Update Simulation UI
     function updateSimulationUI() {
-        if (runners.length === 0) return;
+        if (simRunners.length === 0) return;
 
-        // Sort by current progress
-        runners.sort((a, b) => b.currentDist - a.currentDist);
-        runners.forEach((r, idx) => r.rank = idx + 1);
+        simRunners.sort((a, b) => b.currentDist - a.currentDist);
+        simRunners.forEach((r, idx) => r.rank = idx + 1);
 
-        const leader = runners[0];
-        const second = runners[1];
+        const leader = simRunners[0];
+        const second = simRunners[1];
 
         // Top 5 Leaderboard
         if (simTop5Leaderboard) {
-            const top5 = runners.slice(0, 5);
+            const top5 = simRunners.slice(0, 5);
             simTop5Leaderboard.innerHTML = top5.map((r, idx) => {
                 const gapText = idx === 0 ? "先頭" : `${((leader.currentDist - r.currentDist) * 100).toFixed(1)}m`;
                 return `
@@ -343,7 +264,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (topProgressFill) topProgressFill.style.width = `${(simProgress * 100).toFixed(1)}%`;
 
         if (topHorsesTrack) {
-            topHorsesTrack.innerHTML = runners.map(r => `
+            topHorsesTrack.innerHTML = simRunners.map(r => `
                 <span class="position-absolute translate-middle" style="left: ${(r.currentDist * 100).toFixed(1)}%; top: -5px;">
                     <span class="badge rounded-circle p-1 text-center" style="background:${r.color.bg}; color:${r.color.text}; font-size: 7px; width:14px; height:14px; border:1px solid #fff; line-height:8px;">
                         ${r.horse_number}
@@ -352,7 +273,7 @@ document.addEventListener("DOMContentLoaded", () => {
             `).join("");
         }
 
-        // Commentary & Phase
+        // Commentary
         if (simProgress < 0.1) {
             if (simRunningPhase) simRunningPhase.textContent = "スタート";
             if (simCommentaryHeadline) simCommentaryHeadline.textContent = `全馬一斉に綺麗にスタート！`;
@@ -388,11 +309,11 @@ document.addEventListener("DOMContentLoaded", () => {
     function animateRace() {
         if (!simIsRunning) return;
 
-        const delta = 0.003 * simSpeedMultiplier;
+        const delta = 0.0025 * simSpeedMultiplier;
         simProgress += delta;
 
-        runners.forEach(r => {
-            const staminaFactor = 1.0 + (r.speed / 100.0) * 0.12;
+        simRunners.forEach(r => {
+            const staminaFactor = 1.0 + (r.speedRating / 100.0) * 0.12;
             const variance = (Math.random() - 0.48) * 0.0008;
             r.currentDist = Math.min(1.0, r.currentDist + delta * staminaFactor + variance);
         });
@@ -403,175 +324,349 @@ document.addEventListener("DOMContentLoaded", () => {
         if (simProgress >= 1.0) {
             simIsRunning = false;
             simProgress = 1.0;
-            setTimeout(showResultsScreen, 1200);
+            if (btnStartSim) {
+                btnStartSim.innerHTML = '<i class="fa-solid fa-rotate-right me-1"></i> もう一度再生';
+                btnStartSim.classList.replace("btn-danger", "btn-warning");
+            }
             return;
         }
 
         simAnimationFrame = requestAnimationFrame(animateRace);
     }
 
-    // Show Results Screen
-    function showResultsScreen() {
-        switchScreen(screenResult);
+    // Toggle Play/Pause Simulation
+    if (btnStartSim) {
+        btnStartSim.addEventListener("click", () => {
+            if (simProgress >= 1.0) {
+                simProgress = 0;
+                simRunners.forEach(r => r.currentDist = 0);
+            }
 
-        runners.sort((a, b) => b.currentDist - a.currentDist);
-        const winner = runners[0];
-
-        if (resultWinnerTitle) resultWinnerTitle.textContent = `1着: ${winner.horse_number}番 ${winner.horse_name}`;
-        if (resultWinnerSub) resultWinnerSub.textContent = `脚質: ${winner.running_style} | 人気: ${winner.popularity}番人気 (${winner.odds}倍) | 圧巻の1着！`;
-
-        if (tbodyResults) {
-            tbodyResults.innerHTML = runners.map((r, idx) => {
-                const rankBadgeClass = idx === 0 ? "bg-warning text-dark fw-bold" :
-                                       idx === 1 ? "bg-light text-dark fw-bold" :
-                                       idx === 2 ? "bg-secondary text-white" : "bg-dark text-white-50";
-
-                const timeSec = (118.4 + idx * 0.3 + Math.random() * 0.1).toFixed(1);
-                const min = Math.floor(timeSec / 60);
-                const sec = (timeSec % 60).toFixed(1).padStart(4, "0");
-                const marginText = idx === 0 ? "-" : `${(idx * 1.5).toFixed(1)}馬身`;
-
-                return `
-                    <tr>
-                        <td class="text-center">
-                            <span class="badge ${rankBadgeClass} px-2 py-1 fs-6">${idx + 1}着</span>
-                        </td>
-                        <td class="text-center">
-                            <span class="badge rounded-circle p-1" style="background:${r.color.bg}; color:${r.color.text}; border:1px solid #fff;">${r.horse_number}</span>
-                        </td>
-                        <td>
-                            <div class="fw-bold text-white">${r.horse_name}</div>
-                            <div class="text-white-50 fs-8">${r.popularity}番人気 (${r.odds}倍)</div>
-                        </td>
-                        <td class="text-center">
-                            <span class="badge bg-dark border border-secondary">${r.running_style}</span>
-                        </td>
-                        <td class="text-center font-monospace">${min}:${sec}</td>
-                        <td class="text-center text-white-50 fs-8">${marginText}</td>
-                    </tr>
-                `;
-            }).join("");
-        }
-    }
-
-    // Event Listeners
-    if (btnShuffleRunners) {
-        btnShuffleRunners.addEventListener("click", () => generateRunners(18));
-    }
-
-    if (btnGotoRace) {
-        btnGotoRace.addEventListener("click", () => {
-            switchScreen(screenRace);
-            initSimulation();
-            simIsRunning = true;
-            if (btnTogglePlay) btnTogglePlay.innerHTML = '<i class="fa-solid fa-pause me-1"></i> 一時停止';
-            animateRace();
-        });
-    }
-
-    if (btnBackRacecard) {
-        btnBackRacecard.addEventListener("click", () => {
-            simIsRunning = false;
-            if (simAnimationFrame) cancelAnimationFrame(simAnimationFrame);
-            switchScreen(screenRacecard);
-        });
-    }
-
-    if (btnBackToRacecard) {
-        btnBackToRacecard.addEventListener("click", () => switchScreen(screenRacecard));
-    }
-
-    if (btnRestartSim) {
-        btnRestartSim.addEventListener("click", () => {
-            switchScreen(screenRace);
-            initSimulation();
-            simIsRunning = true;
-            if (btnTogglePlay) btnTogglePlay.innerHTML = '<i class="fa-solid fa-pause me-1"></i> 一時停止';
-            animateRace();
-        });
-    }
-
-    if (btnTogglePlay) {
-        btnTogglePlay.addEventListener("click", () => {
             simIsRunning = !simIsRunning;
+
             if (simIsRunning) {
-                btnTogglePlay.innerHTML = '<i class="fa-solid fa-pause me-1"></i> 一時停止';
+                btnStartSim.innerHTML = '<i class="fa-solid fa-pause me-1"></i> 一時停止';
+                btnStartSim.classList.replace("btn-warning", "btn-danger");
+                btnStartSim.classList.replace("text-dark", "text-white");
                 animateRace();
             } else {
-                btnTogglePlay.innerHTML = '<i class="fa-solid fa-play me-1"></i> 再開';
+                btnStartSim.innerHTML = '<i class="fa-solid fa-play me-1"></i> 再開';
+                btnStartSim.classList.replace("btn-danger", "btn-warning");
+                btnStartSim.classList.replace("text-white", "text-dark");
                 if (simAnimationFrame) cancelAnimationFrame(simAnimationFrame);
             }
         });
     }
 
-    if (btnSpeed1x) {
-        btnSpeed1x.addEventListener("click", () => {
-            simSpeedMultiplier = 1.0;
-            [btnSpeed1x, btnSpeed2x, btnSpeedSkip].forEach(b => b.classList.remove("active"));
-            btnSpeed1x.classList.add("active");
+    if (btnResetSim) {
+        btnResetSim.addEventListener("click", () => {
+            if (currentRace) {
+                initSimulation(currentRace, simPredictions);
+            }
         });
     }
 
-    if (btnSpeed2x) {
-        btnSpeed2x.addEventListener("click", () => {
-            simSpeedMultiplier = 2.5;
-            [btnSpeed1x, btnSpeed2x, btnSpeedSkip].forEach(b => b.classList.remove("active"));
-            btnSpeed2x.classList.add("active");
-        });
+    // Load available races into select dropdown
+    async function loadRaces(selectedId = null) {
+        try {
+            const res = await fetch("/api/races");
+            const data = await res.json();
+            if (data.status === "success" && data.races) {
+                selectRace.innerHTML = '<option value="">-- 保存・サンプルレースを選択 --</option>';
+                data.races.forEach(r => {
+                    const opt = document.createElement("option");
+                    opt.value = r.race_id;
+                    opt.textContent = `[JRA] ${r.race_name} (${r.track_name} ${r.surface_type}${r.distance}m / ${r.horse_count}頭)`;
+                    selectRace.appendChild(opt);
+                });
+                if (selectedId) {
+                    selectRace.value = selectedId;
+                }
+            }
+        } catch (err) {
+            console.error("Failed to fetch races:", err);
+        }
     }
 
-    if (btnSpeedSkip) {
-        btnSpeedSkip.addEventListener("click", () => {
-            simProgress = 1.0;
-            simIsRunning = false;
-            showResultsScreen();
-        });
-    }
+    // Load selected race
+    btnLoadRace.addEventListener("click", async () => {
+        const raceId = selectRace.value;
+        if (!raceId) {
+            alert("レースを選択してください。");
+            return;
+        }
 
-    // JRA Fetch Integration (Optional Flask Backend API support)
-    const btnFetchWeekly = document.getElementById("btn-fetch-weekly");
-    const btnFetchWeeklyCard = document.getElementById("btn-fetch-weekly-card");
+        try {
+            const res = await fetch(`/api/races/${raceId}`);
+            const data = await res.json();
+            if (data.status === "success") {
+                currentRace = data.race;
+                await runPrediction(currentRace);
+            }
+        } catch (err) {
+            alert("レース情報の取得に失敗しました。");
+        }
+    });
 
+    // One-Click Weekly JRA Data Auto Import Handler
     async function handleFetchWeeklyJra() {
-        alert("JRA公式HPから今週の出馬表データを取得して対戦用データを読み込みます。");
+        const originalText = btnFetchWeekly ? btnFetchWeekly.innerHTML : "";
+        if (btnFetchWeekly) {
+            btnFetchWeekly.disabled = true;
+            btnFetchWeekly.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> JRA公式から今週の出馬表を一括取得・AI全予想計算中...';
+        }
+        if (btnFetchWeeklySide) {
+            btnFetchWeeklySide.disabled = true;
+            btnFetchWeeklySide.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> 取得中...';
+        }
+
+        tbodyPredictions.innerHTML = '<tr><td colspan="6" class="text-center py-4"><div class="spinner-border text-warning" role="status"></div><div class="mt-2 text-warning fw-bold">JRAホームページから今週のレース出馬表を取得・データベース保存・AI全予想計算中...</div></td></tr>';
+
         try {
             const res = await fetch("/api/import_weekly_jra", { method: "POST" });
             const data = await res.json();
+
             if (data.status === "success" && data.results && data.results.length > 0) {
-                const race = data.results[0].race;
-                currentRace.title = `${race.race_name} (${race.track_name} ${race.surface_type}${race.distance}m)`;
-                document.getElementById("racecard-title").textContent = currentRace.title;
+                // Refresh dropdown and select the first race
+                await loadRaces(data.results[0].race.race_id);
 
-                runners = race.horses.map((h, idx) => ({
-                    horse_number: h.horse_number,
-                    horse_name: h.horse_name,
-                    running_style: STYLES[idx % STYLES.length],
-                    speed: Math.floor(h.past_speed_rating || 85),
-                    stamina: 80,
-                    power: 80,
-                    guts: 80,
-                    odds: h.odds || 5.0,
-                    popularity: idx + 1,
-                    color: getCapColor(h.horse_number),
-                    currentDist: 0,
-                    xPos: 50,
-                    yPos: 120 + (idx % 6) * 35,
-                    laneOffset: (idx % 5) * 16 - 32,
-                    rank: idx + 1,
-                    hasTriggeredSkill: false
-                }));
+                const firstResult = data.results[0];
+                currentRace = firstResult.race;
 
-                renderRacecard();
-                alert(`JRA今週のデータ一括読込完了 (${data.count}レース)！`);
+                displayRaceName.textContent = firstResult.race.race_name;
+                displayRaceMeta.textContent = `${firstResult.race.track_name}競馬場 | ${firstResult.race.surface_type}${firstResult.race.distance}m | 馬場: ${firstResult.race.track_condition} | 天候: ${firstResult.race.weather} (JRA一括取得完了: ${data.count}レース)`;
+
+                renderPredictions(firstResult.predictions);
+                renderRecommendations(firstResult.recommendations);
+                displayConfidence.textContent = `${firstResult.recommendations.confidence_score}%`;
+
+                // Initialize Simulation
+                initSimulation(firstResult.race, firstResult.predictions);
+
+                alert(`【成功】今週の全JRA出馬表 (${data.count}レース) を一括取得しました！\nドロップダウンから各レースを自由に切り替え可能です。`);
+            } else {
+                alert("今週のJRAデータ取得エラー: " + (data.message || "データが見つかりませんでした。"));
             }
-        } catch (e) {
-            console.log("Standalone mode running without backend server.");
+        } catch (err) {
+            console.error("Failed to fetch weekly JRA races:", err);
+            alert("通信エラーにより今週のJRAデータ取得に失敗しました。");
+        } finally {
+            if (btnFetchWeekly) {
+                btnFetchWeekly.disabled = false;
+                btnFetchWeekly.innerHTML = originalText;
+            }
+            if (btnFetchWeeklySide) {
+                btnFetchWeeklySide.disabled = false;
+                btnFetchWeeklySide.innerHTML = '<i class="fa-solid fa-sync me-1"></i> 今週のJRA全レースを再取得';
+            }
         }
     }
 
     if (btnFetchWeekly) btnFetchWeekly.addEventListener("click", handleFetchWeeklyJra);
-    if (btnFetchWeeklyCard) btnFetchWeeklyCard.addEventListener("click", handleFetchWeeklyJra);
+    if (btnFetchWeeklySide) btnFetchWeeklySide.addEventListener("click", handleFetchWeeklyJra);
 
-    // Initial Load
-    generateRunners(18);
+    // Individual JRA Import Form
+    formImportJra.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const urlInput = document.getElementById("input-jra-url").value.trim();
+        const textInput = document.getElementById("input-jra-text").value.trim();
+
+        if (!urlInput && !textInput) {
+            alert("URL または 出馬表テキストを入力してください。");
+            return;
+        }
+
+        tbodyPredictions.innerHTML = '<tr><td colspan="6" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-muted">JRA出馬表取り込み＆分析中...</div></td></tr>';
+
+        try {
+            const res = await fetch("/api/import_jra", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ url: urlInput || null, text_content: textInput || null })
+            });
+            const result = await res.json();
+
+            if (result.status === "success") {
+                currentRace = result.race;
+                displayRaceName.textContent = result.race.race_name;
+                displayRaceMeta.textContent = `${result.race.track_name}競馬場 | ${result.race.surface_type}${result.race.distance}m | 馬場: ${result.race.track_condition}`;
+
+                renderPredictions(result.predictions);
+                renderRecommendations(result.recommendations);
+                displayConfidence.textContent = `${result.recommendations.confidence_score}%`;
+
+                initSimulation(result.race, result.predictions);
+                await loadRaces(result.race.race_id);
+            } else {
+                alert("JRA取り込みエラー: " + result.message);
+            }
+        } catch (err) {
+            alert("取り込み通信に失敗しました。");
+        }
+    });
+
+    async function runPrediction(raceData) {
+        displayRaceName.textContent = raceData.race_name;
+        displayRaceMeta.textContent = `${raceData.track_name}競馬場 | ${raceData.surface_type}${raceData.distance}m | 馬場: ${raceData.track_condition} | 天候: ${raceData.weather}`;
+
+        tbodyPredictions.innerHTML = '<tr><td colspan="6" class="text-center py-4"><div class="spinner-border text-warning" role="status"></div><div class="mt-2 text-warning">AI 思考解析中...</div></td></tr>';
+
+        try {
+            const res = await fetch("/api/predict", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(raceData)
+            });
+            const result = await res.json();
+
+            if (result.status === "success") {
+                renderPredictions(result.predictions);
+                renderRecommendations(result.recommendations);
+                displayConfidence.textContent = `${result.recommendations.confidence_score}%`;
+
+                initSimulation(raceData, result.predictions);
+                await loadRaces(raceData.race_id);
+            } else {
+                alert("予想の実行に失敗しました: " + result.message);
+            }
+        } catch (err) {
+            alert("通信エラーが発生しました。");
+        }
+    }
+
+    function renderPredictions(predictions) {
+        tbodyPredictions.innerHTML = "";
+        predictions.forEach((p, index) => {
+            const tr = document.createElement("tr");
+            if (index === 0) tr.classList.add("rank-1");
+            else if (index === 1) tr.classList.add("rank-2");
+            else if (index === 2) tr.classList.add("rank-3");
+
+            const winPercent = (p.win_probability * 100).toFixed(1);
+            const placePercent = (p.place_probability * 100).toFixed(1);
+            const evColor = p.win_ev >= 1.0 ? "bg-danger" : p.win_ev >= 0.85 ? "bg-warning text-dark" : "bg-secondary";
+
+            tr.innerHTML = `
+                <td class="text-center fw-bold fs-6">${p.horse_number}</td>
+                <td>
+                    <div class="fw-bold text-white">${p.horse_name}</div>
+                    <div class="text-white-50 fs-8"><i class="fa-solid fa-user-tie me-1"></i>${p.jockey_name}</div>
+                </td>
+                <td class="text-center fw-bold text-warning">${p.odds} 倍</td>
+                <td>
+                    <div class="d-flex justify-content-between small mb-1">
+                        <span class="fs-8">勝率</span>
+                        <span class="fw-bold fs-8">${winPercent}%</span>
+                    </div>
+                    <div class="progress prob-bar">
+                        <div class="progress-bar bg-success" style="width: ${winPercent}%"></div>
+                    </div>
+                </td>
+                <td>
+                    <div class="d-flex justify-content-between small mb-1">
+                        <span class="fs-8">複勝率</span>
+                        <span class="fw-bold fs-8">${placePercent}%</span>
+                    </div>
+                    <div class="progress prob-bar">
+                        <div class="progress-bar bg-info" style="width: ${placePercent}%"></div>
+                    </div>
+                </td>
+                <td class="text-center">
+                    <span class="badge ${evColor} fs-7">${p.win_ev}</span>
+                </td>
+            `;
+            tbodyPredictions.appendChild(tr);
+        });
+    }
+
+    function renderRecommendations(recs) {
+        const winContainer = document.getElementById("container-win-tickets");
+        if (!recs.win_tickets || recs.win_tickets.length === 0) {
+            winContainer.innerHTML = '<div class="text-white-50 small p-2">推奨単勝カードなし</div>';
+        } else {
+            winContainer.innerHTML = recs.win_tickets.map(t => `
+                <div class="col-md-6">
+                    <div class="ticket-card p-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="badge bg-danger">${t.level}</span>
+                            <span class="fw-bold text-warning fs-7">期待値 ${t.ev}</span>
+                        </div>
+                        <h6 class="fw-bold mb-1 text-white">${t.horse_number}番 ${t.horse_name}</h6>
+                        <div class="fs-8 text-white-50">勝率: ${t.probability}% | オッズ: ${t.odds}倍</div>
+                        <div class="mt-1 text-end text-info fw-bold fs-8">推奨資金配分: ${t.recommended_stake_percent}%</div>
+                    </div>
+                </div>
+            `).join("");
+        }
+
+        const placeContainer = document.getElementById("container-place-tickets");
+        if (placeContainer && recs.place_tickets) {
+            placeContainer.innerHTML = recs.place_tickets.map(t => `
+                <div class="col-md-6">
+                    <div class="ticket-card p-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="badge bg-info text-dark">${t.recommendation}</span>
+                            <span class="fw-bold text-white fs-7">複勝率 ${t.place_probability}%</span>
+                        </div>
+                        <h6 class="fw-bold mb-1 text-white">${t.horse_number}番 ${t.horse_name}</h6>
+                        <div class="fs-8 text-white-50">単勝オッズ: ${t.odds}倍</div>
+                    </div>
+                </div>
+            `).join("");
+        }
+
+        const exactaContainer = document.getElementById("container-exacta-tickets");
+        if (exactaContainer && recs.exacta_tickets) {
+            exactaContainer.innerHTML = recs.exacta_tickets.map(t => `
+                <div class="col-md-6">
+                    <div class="ticket-card p-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="badge bg-dark border border-secondary">馬単 (1着-2着)</span>
+                            <span class="fw-bold text-warning fs-7">想定 ${t.estimated_odds}倍</span>
+                        </div>
+                        <h6 class="fw-bold mb-1 text-white">${t.combination} (${t.first_name} → ${t.second_name})</h6>
+                        <div class="fs-8 text-white-50">合成確率: ${t.joint_probability}% | 期待値: ${t.ev}</div>
+                    </div>
+                </div>
+            `).join("");
+        }
+
+        const trioContainer = document.getElementById("container-trio-tickets");
+        if (trioContainer && recs.trio_tickets) {
+            trioContainer.innerHTML = recs.trio_tickets.map(t => `
+                <div class="col-md-6">
+                    <div class="ticket-card p-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="badge bg-warning text-dark">3連複 (1軸流し)</span>
+                            <span class="fw-bold text-success fs-7">想定 ${t.estimated_odds}倍</span>
+                        </div>
+                        <h6 class="fw-bold mb-1 text-white">${t.combination}</h6>
+                        <div class="fs-8 text-white-50">軸: ${t.axis_name} / 相手: ${t.partner1_name}, ${t.partner2_name}</div>
+                    </div>
+                </div>
+            `).join("");
+        }
+    }
+
+    // Retrain Model
+    if (btnRetrain) {
+        btnRetrain.addEventListener("click", async () => {
+            btnRetrain.disabled = true;
+            btnRetrain.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> 学習中...';
+            try {
+                const res = await fetch("/api/train", { method: "POST" });
+                const data = await res.json();
+                alert(data.message);
+                if (currentRace) runPrediction(currentRace);
+            } catch (err) {
+                alert("モデル再学習に失敗しました。");
+            } finally {
+                btnRetrain.disabled = false;
+                btnRetrain.innerHTML = '<i class="fa-solid fa-arrows-rotate me-1"></i> AIモデル再学習';
+            }
+        });
+    }
+
+    // Initial load
+    loadRaces();
 });

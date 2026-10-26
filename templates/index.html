@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>オリジンダービー - オリジナルウマ娘風 レースシミュレーター</title>
+    <title>オリジンダービー - 高精度 AI競馬的中予想 & レースシミュレーター</title>
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- FontAwesome Icons -->
@@ -12,12 +12,12 @@
         :root {
             --primary-pink: #ff6b81;
             --primary-purple: #70a1ff;
-            --bg-dark: #1e1e2f;
-            --card-bg: #2d2d44;
+            --bg-dark: #181828;
+            --card-bg: #212135;
         }
 
         body {
-            background: linear-gradient(135deg, #181828 0%, #212135 100%);
+            background: linear-gradient(135deg, #12121e 0%, #1a1a2e 100%);
             color: #ffffff;
             font-family: 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
             min-height: 100vh;
@@ -26,24 +26,11 @@
             padding: 0;
         }
 
-        /* Screen navigation */
-        .app-screen {
-            display: none;
-            width: 100%;
-            max-width: 1000px;
-            margin: 0 auto;
-            padding: 12px;
-        }
-        .app-screen.active {
-            display: block;
-        }
-
-        /* Card styles */
         .custom-card {
             background-color: var(--card-bg);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.12);
             border-radius: 16px;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
             margin-bottom: 16px;
             overflow: hidden;
         }
@@ -58,30 +45,6 @@
             justify-content: space-between;
         }
 
-        /* Runner Avatars */
-        .runner-avatar-box {
-            width: 48px;
-            height: 48px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            color: white;
-            font-size: 20px;
-            border: 2px solid #ffffff;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-            flex-shrink: 0;
-        }
-
-        /* Stat Bars */
-        .stat-badge {
-            font-size: 11px;
-            padding: 2px 6px;
-            border-radius: 4px;
-            background: rgba(255,255,255,0.1);
-        }
-
         /* Canvas Track */
         #race-canvas {
             width: 100%;
@@ -92,236 +55,262 @@
             display: block;
         }
 
-        /* Strategy Badges */
-        .badge-style-nige { background-color: #ff4757; color: white; }
-        .badge-style-senko { background-color: #ffa502; color: white; }
-        .badge-style-sashi { background-color: #2ed573; color: white; }
-        .badge-style-goi { background-color: #1e90ff; color: white; }
+        .rank-1 { background-color: rgba(255, 215, 0, 0.15) !important; }
+        .rank-2 { background-color: rgba(192, 192, 192, 0.15) !important; }
+        .rank-3 { background-color: rgba(205, 127, 50, 0.15) !important; }
 
-        /* Responsive Mobile Fit */
+        .prob-bar {
+            height: 8px;
+            border-radius: 4px;
+        }
+
+        .ticket-card {
+            border-left: 4px solid #0d6efd;
+            background-color: #2a2a40;
+            border-radius: 8px;
+        }
+
         @media (max-width: 576px) {
-            .app-screen {
+            .container-fluid {
                 padding: 8px;
-            }
-            .fs-mobile-sm {
-                font-size: 0.85rem !important;
             }
         }
     </style>
 </head>
 <body>
 
-    <!-- Header Navigation Bar -->
-    <header class="bg-black bg-opacity-75 py-2 px-3 border-bottom border-secondary d-flex justify-content-between align-items-center">
+    <!-- Header Navigation -->
+    <header class="bg-black bg-opacity-80 py-2 px-3 border-bottom border-secondary d-flex justify-content-between align-items-center">
         <div class="d-flex align-items-center gap-2">
-            <i class="fa-solid fa-flag-checkered text-warning fs-4"></i>
-            <span class="fw-bold fs-5 text-warning">オリジンダービー <span class="fs-7 text-white-50">ウマ娘風レース</span></span>
+            <i class="fa-solid fa-horse-head text-warning fs-4"></i>
+            <span class="fw-bold fs-5 text-warning">AI競馬予想 & ウマ娘シミュレーター</span>
         </div>
-        <div>
-            <button id="btn-fetch-weekly" class="btn btn-warning btn-sm fw-bold rounded-pill text-dark px-3 d-none d-md-inline-block">
-                <i class="fa-solid fa-bolt me-1 text-danger"></i> 今週のJRAデータ一括取得
-            </button>
-        </div>
+        <button id="btn-retrain" class="btn btn-outline-warning btn-sm fw-bold rounded-pill">
+            <i class="fa-solid fa-arrows-rotate me-1"></i> AIモデル再学習
+        </button>
     </header>
 
-    <!-- App Container -->
+    <!-- Main Container -->
     <main class="container-fluid py-3">
 
-        <!-- ================= SCREEN 1: 出走表 (RACECARD SCREEN) ================= -->
-        <section id="screen-racecard" class="app-screen active">
+        <!-- Top One-Click JRA Import Banner -->
+        <div class="custom-card p-3 text-center bg-gradient border-warning mb-3" style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);">
+            <h2 class="fw-bold text-warning mb-1 fs-4"><i class="fa-solid fa-chart-line me-2"></i>JRA公式データ 自動解析 & 3Dレースシミュレーション</h2>
+            <p class="text-light small mb-2">LightGBM / RandomForest による勝率解析 ＆ ウマ娘風レース表示</p>
+            <button id="btn-fetch-weekly" class="btn btn-warning btn-lg px-4 py-2 fw-bold text-dark rounded-pill shadow border-2 border-white">
+                <i class="fa-solid fa-bolt me-2 text-danger fs-5"></i> ボタン一つで今週分のJRAデータを全取得して一括予想！
+            </button>
+        </div>
 
-            <div class="custom-card mb-3">
-                <div class="custom-card-header">
-                    <div>
-                        <i class="fa-solid fa-trophy me-2 text-warning"></i>
-                        <span id="racecard-title" class="fs-5">第11回 オリジン記念 (GI / 芝2000m)</span>
+        <div class="row g-3">
+            <!-- Left Column: Race Selector & Controls -->
+            <div class="col-lg-4">
+
+                <!-- Race Selection Card -->
+                <div class="custom-card p-3">
+                    <h5 class="text-warning fw-bold mb-2 fs-6">
+                        <i class="fa-solid fa-trophy me-2"></i>レースを選択
+                    </h5>
+                    <div class="mb-3">
+                        <select id="select-race" class="form-select bg-dark text-white border-secondary fw-bold">
+                            <option value="">-- 今週のJRAレースを選択 --</option>
+                        </select>
                     </div>
-                    <span class="badge bg-dark text-warning border border-warning">18頭立て</span>
+                    <button id="btn-load-race" class="btn btn-primary w-100 fw-bold rounded-pill mb-2">
+                        <i class="fa-solid fa-magnifying-glass me-1"></i> 選択したレースを解析・予想
+                    </button>
+                    <button id="btn-fetch-weekly-side" class="btn btn-outline-warning btn-sm w-100 fw-bold rounded-pill">
+                        <i class="fa-solid fa-sync me-1"></i> 今週のJRA全レースを再取得
+                    </button>
                 </div>
-                <div class="p-3">
-                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                        <div class="text-white-50 small">
-                            <i class="fa-solid fa-cloud-sun me-1 text-info"></i> 天候: 晴れ | 馬場: 良 | ファン投票1位 出走
+
+                <!-- Individual JRA URL Import -->
+                <div class="custom-card p-3">
+                    <h5 class="text-info fw-bold mb-2 fs-6">
+                        <i class="fa-solid fa-cloud-arrow-down me-2"></i>個別 JRA URL/テキスト取込
+                    </h5>
+                    <form id="form-import-jra">
+                        <input type="url" id="input-jra-url" class="form-control form-control-sm bg-dark text-white border-secondary mb-2" placeholder="https://www.jra.go.jp/...">
+                        <textarea id="input-jra-text" class="form-control form-control-sm bg-dark text-white border-secondary mb-2" rows="2" placeholder="出馬表テキストを直接貼り付け"></textarea>
+                        <button type="submit" class="btn btn-success btn-sm w-100 fw-bold rounded-pill">
+                            <i class="fa-solid fa-download me-1"></i> 取り込んで予想実行
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Race Info & Confidence Header -->
+                <div class="custom-card p-3 bg-black">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="text-white-50 small">AI予想 信頼度</span>
+                        <span id="display-confidence" class="badge bg-danger rounded-pill fs-6">88%</span>
+                    </div>
+                    <h5 id="display-race-name" class="fw-bold text-warning mb-1 fs-6">レース未選択</h5>
+                    <p id="display-race-meta" class="text-white-50 fs-8 mb-0">レースを選択してください</p>
+                </div>
+
+            </div>
+
+            <!-- Right Column: Simulation & Predictions & Recommendations -->
+            <div class="col-lg-8">
+
+                <!-- Race Simulation Screen -->
+                <div class="custom-card p-0 position-relative overflow-hidden border border-secondary shadow-lg">
+                    <div class="custom-card-header py-2">
+                        <div>
+                            <span class="badge bg-danger me-2"><i class="fa-solid fa-gamepad me-1"></i>SIMULATION</span>
+                            <span id="sim-race-title" class="fw-bold fs-6">ウマ娘風 3Dレースシミュレーション</span>
                         </div>
-                        <div class="d-flex gap-2">
-                            <button id="btn-shuffle-runners" class="btn btn-outline-light btn-sm rounded-pill fw-bold">
-                                <i class="fa-solid fa-shuffle me-1"></i> キャラ再生成
+                        <div class="d-flex gap-1">
+                            <button id="btn-speed-sim" class="btn btn-outline-warning btn-sm fw-bold">
+                                <span id="sim-speed-text">1.0x</span>
                             </button>
-                            <button id="btn-goto-race" class="btn btn-warning btn-lg fw-bold rounded-pill text-dark shadow px-4">
-                                <i class="fa-solid fa-play me-2 text-danger"></i> レース開始 !
+                            <button id="btn-start-sim" class="btn btn-warning btn-sm fw-bold text-dark">
+                                <i class="fa-solid fa-play me-1"></i> スタート
+                            </button>
+                            <button id="btn-reset-sim" class="btn btn-outline-light btn-sm fw-bold">
+                                <i class="fa-solid fa-rotate-left me-1"></i> リセット
                             </button>
                         </div>
                     </div>
 
-                    <!-- Runner List Table / Cards -->
+                    <div class="position-relative bg-dark p-0 text-center overflow-hidden">
+                        <!-- Top Progress Bar -->
+                        <div class="position-absolute top-0 start-0 end-0 p-2 z-3 bg-black bg-opacity-75 d-flex align-items-center px-3">
+                            <span class="badge bg-danger fw-bold fs-8 me-2">GOAL</span>
+                            <div class="flex-grow-1 position-relative mx-2" style="height: 10px; background: rgba(255,255,255,0.2); border-radius: 5px;">
+                                <div id="top-progress-fill" style="width: 0%; height: 100%; background: linear-gradient(90deg, #ff416c, #ff4b2b); border-radius: 5px;"></div>
+                                <div id="top-horses-track" class="position-absolute top-50 start-0 w-100 translate-middle-y"></div>
+                            </div>
+                            <span class="badge bg-primary fw-bold fs-8 ms-2">START</span>
+                        </div>
+
+                        <!-- Canvas -->
+                        <canvas id="race-canvas" width="800" height="400"></canvas>
+
+                        <!-- Left Live Top 5 Leaderboard Overlay -->
+                        <div class="position-absolute top-0 start-0 m-2 mt-5 z-3 text-start" style="pointer-events: none; width: 170px;">
+                            <div class="bg-black bg-opacity-80 p-2 rounded-3 border border-secondary shadow backdrop-blur">
+                                <div class="text-warning fw-bold fs-8 mb-1 pb-1 border-bottom border-secondary d-flex justify-content-between">
+                                    <span><i class="fa-solid fa-ranking-star me-1"></i>順位 (Live)</span>
+                                    <span id="sim-running-phase" class="badge bg-danger fs-8">序盤</span>
+                                </div>
+                                <div id="sim-top5-leaderboard" class="d-flex flex-column gap-1 font-monospace"></div>
+                            </div>
+                        </div>
+
+                        <!-- Skill Notice Banner Overlay -->
+                        <div id="sim-skill-popup" class="position-absolute top-0 end-0 m-3 mt-5 z-3 d-none">
+                            <div class="bg-black bg-opacity-90 text-warning fw-bold px-3 py-2 rounded-4 shadow-lg border border-warning d-flex align-items-center gap-2">
+                                <span class="badge bg-warning text-dark rounded-circle p-2"><i class="fa-solid fa-bolt fs-6"></i></span>
+                                <div>
+                                    <div id="sim-skill-title" class="fs-8 text-white-50">ウマ娘固有スキル発動！</div>
+                                    <div id="sim-skill-text" class="fs-7 text-warning fw-bold">【固有スキル】全開スパート発動！</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Timer Overlay -->
+                        <div class="position-absolute bottom-0 end-0 m-2 z-3 p-2 bg-black bg-opacity-75 rounded-3 border border-secondary text-end small" style="pointer-events: none;">
+                            <div class="text-warning fw-bold fs-8 mb-0"><i class="fa-solid fa-stopwatch me-1"></i>タイム</div>
+                            <div class="fs-5 fw-bold font-monospace text-white" id="sim-timer">00:00.0</div>
+                            <div class="text-info fs-8 fw-bold" id="sim-leader-name">先頭: ----</div>
+                        </div>
+                    </div>
+
+                    <!-- Commentary Box -->
+                    <div class="p-2 px-3 bg-black border-top border-secondary">
+                        <div class="d-flex align-items-center gap-2 mb-1">
+                            <span class="badge bg-danger fs-7"><i class="fa-solid fa-microphone-lines me-1"></i>実況</span>
+                            <span id="sim-commentary-headline" class="text-warning fw-bold fs-6">さあ、全馬一斉に綺麗にスタートを切りました！</span>
+                        </div>
+                        <div id="sim-commentary-sub" class="text-white-50 fs-8 ps-4">
+                            絶好の展開でレース進行中！
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AI Prediction Table Section -->
+                <div class="custom-card p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom border-secondary">
+                        <h5 class="text-warning fw-bold mb-0 fs-6">
+                            <i class="fa-solid fa-calculator me-2"></i>AI 予想解析結果 (勝率・複勝率・期待値)
+                        </h5>
+                        <button id="btn-recalculate" class="btn btn-sm btn-outline-warning fw-bold rounded-pill d-none">
+                            再計算
+                        </button>
+                    </div>
                     <div class="table-responsive">
-                        <table class="table table-dark table-hover align-middle mb-0 text-white border-secondary">
+                        <table class="table table-dark table-hover align-middle mb-0">
                             <thead>
-                                <tr class="text-warning small border-bottom border-secondary">
-                                    <th class="text-center" style="width: 8%;">枠/番</th>
-                                    <th style="width: 28%;">ウマ娘キャラ</th>
-                                    <th class="text-center" style="width: 14%;">脚質</th>
-                                    <th style="width: 35%;">パラメータ (スピ/スタ/パワー/根性)</th>
-                                    <th class="text-center" style="width: 15%;">人気 / オッズ</th>
+                                <tr class="text-warning small">
+                                    <th class="text-center" style="width: 8%;">馬番</th>
+                                    <th style="width: 28%;">馬名 / 騎手</th>
+                                    <th class="text-center" style="width: 14%;">単勝オッズ</th>
+                                    <th style="width: 22%;">勝率 (Win Prob)</th>
+                                    <th style="width: 18%;">複勝率 (Place Prob)</th>
+                                    <th class="text-center" style="width: 10%;">期待値</th>
                                 </tr>
                             </thead>
-                            <tbody id="tbody-racecard-runners">
-                                <!-- Populated dynamically by app.js -->
+                            <tbody id="tbody-predictions">
+                                <tr>
+                                    <td colspan="6" class="text-center text-white-50 py-4">「今週のJRAデータ一括取得」または「レースを選択」を押すとAI予想が表示されます。</td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
-            </div>
 
-            <!-- JRA Integration Quick Bar -->
-            <div class="custom-card p-3 bg-dark text-center border-warning">
-                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                    <span class="text-warning fw-bold"><i class="fa-solid fa-cloud-arrow-down me-2"></i>JRA公式の最新出馬表で予想＆シミュレーション</span>
-                    <button id="btn-fetch-weekly-card" class="btn btn-outline-warning btn-sm fw-bold rounded-pill">
-                        <i class="fa-solid fa-sync me-1"></i> 今週のJRA全レースを一括読み込み
-                    </button>
-                </div>
-            </div>
+                <!-- AI Recommended Tickets Cards -->
+                <div class="custom-card p-3">
+                    <h5 class="text-success fw-bold mb-3 pb-2 border-bottom border-secondary fs-6">
+                        <i class="fa-solid fa-ticket me-2"></i>AI 推奨買い目カード (Expected Value MAX)
+                    </h5>
 
-        </section>
+                    <ul class="nav nav-pills mb-3" id="ticket-tab" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active fw-bold btn-sm me-1" id="tab-win" data-bs-toggle="pill" data-bs-target="#content-win" type="button">単勝 (Win)</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link fw-bold btn-sm me-1" id="tab-place" data-bs-toggle="pill" data-bs-target="#content-place" type="button">複勝 (Place)</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link fw-bold btn-sm me-1" id="tab-exacta" data-bs-toggle="pill" data-bs-target="#content-exacta" type="button">馬単 (Exacta)</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link fw-bold btn-sm" id="tab-trio" data-bs-toggle="pill" data-bs-target="#content-trio" type="button">3連複 (Trio)</button>
+                        </li>
+                    </ul>
 
-        <!-- ================= SCREEN 2: レース画面 (RACE SIMULATION SCREEN) ================= -->
-        <section id="screen-race" class="app-screen">
-
-            <!-- Control Bar -->
-            <div class="custom-card mb-2 bg-dark border-secondary">
-                <div class="p-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
-                    <div class="d-flex align-items-center gap-2">
-                        <button id="btn-back-racecard" class="btn btn-outline-light btn-sm fw-bold">
-                            <i class="fa-solid fa-arrow-left me-1"></i> 出走表へ
-                        </button>
-                        <span id="sim-race-title-screen2" class="fw-bold text-warning fs-6">第11回 オリジン記念 (芝2000m)</span>
-                    </div>
-                    <div class="d-flex align-items-center gap-2">
-                        <!-- Speed Switcher -->
-                        <div class="btn-group btn-group-sm" role="group">
-                            <button id="btn-speed-1x" class="btn btn-outline-warning active fw-bold">1x</button>
-                            <button id="btn-speed-2x" class="btn btn-outline-warning fw-bold">2x</button>
-                            <button id="btn-speed-skip" class="btn btn-outline-danger fw-bold">Skip</button>
+                    <div class="tab-content" id="ticket-tab-content">
+                        <div class="tab-pane fade show active" id="content-win">
+                            <div id="container-win-tickets" class="row g-2">
+                                <div class="text-white-50 small">推奨買い目がここに表示されます。</div>
+                            </div>
                         </div>
-                        <button id="btn-toggle-play" class="btn btn-warning btn-sm fw-bold text-dark px-3">
-                            <i class="fa-solid fa-pause me-1"></i> 一時停止
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Main Stage Canvas Card -->
-            <div class="custom-card p-0 position-relative overflow-hidden border border-secondary shadow-lg">
-
-                <!-- Top Track Progress Bar (GOAL <--- START) -->
-                <div class="position-absolute top-0 start-0 end-0 p-2 z-3 bg-black bg-opacity-75 d-flex align-items-center px-3">
-                    <span class="badge bg-danger fw-bold fs-8 me-2">GOAL</span>
-                    <div class="flex-grow-1 position-relative mx-2" style="height: 10px; background: rgba(255,255,255,0.2); border-radius: 5px;">
-                        <div id="top-progress-fill" style="width: 0%; height: 100%; background: linear-gradient(90deg, #ff416c, #ff4b2b); border-radius: 5px;"></div>
-                        <div id="top-horses-track" class="position-absolute top-50 start-0 w-100 translate-middle-y"></div>
-                    </div>
-                    <span class="badge bg-primary fw-bold fs-8 ms-2">START</span>
-                </div>
-
-                <!-- Simulation Canvas -->
-                <canvas id="race-canvas" width="800" height="400"></canvas>
-
-                <!-- Left Live Top 5 Leaderboard Overlay -->
-                <div class="position-absolute top-0 start-0 m-2 mt-5 z-3 text-start" style="pointer-events: none; width: 170px;">
-                    <div class="bg-black bg-opacity-80 p-2 rounded-3 border border-secondary shadow backdrop-blur">
-                        <div class="text-warning fw-bold fs-8 mb-1 pb-1 border-bottom border-secondary d-flex justify-content-between">
-                            <span><i class="fa-solid fa-ranking-star me-1"></i>順位 (Live)</span>
-                            <span id="sim-running-phase" class="badge bg-danger fs-8">序盤</span>
+                        <div class="tab-pane fade" id="content-place">
+                            <div id="container-place-tickets" class="row g-2">
+                                <div class="text-white-50 small">推奨買い目がここに表示されます。</div>
+                            </div>
                         </div>
-                        <div id="sim-top5-leaderboard" class="d-flex flex-column gap-1 font-monospace">
-                            <!-- Top 5 runners dynamic -->
+                        <div class="tab-pane fade" id="content-exacta">
+                            <div id="container-exacta-tickets" class="row g-2">
+                                <div class="text-white-50 small">推奨買い目がここに表示されます。</div>
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="content-trio">
+                            <div id="container-trio-tickets" class="row g-2">
+                                <div class="text-white-50 small">推奨買い目がここに表示されます。</div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Skill Notice Banner Overlay -->
-                <div id="sim-skill-popup" class="position-absolute top-0 end-0 m-3 mt-5 z-3 d-none">
-                    <div class="bg-black bg-opacity-90 text-warning fw-bold px-3 py-2 rounded-4 shadow-lg border border-warning d-flex align-items-center gap-2">
-                        <span class="badge bg-warning text-dark rounded-circle p-2"><i class="fa-solid fa-bolt fs-6"></i></span>
-                        <div>
-                            <div id="sim-skill-title" class="fs-8 text-white-50">ウマ娘固有スキル発動！</div>
-                            <div id="sim-skill-text" class="fs-7 text-warning fw-bold">【固有スキル】全開スパート発動！</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Timer Stats Overlay -->
-                <div class="position-absolute bottom-0 end-0 m-2 z-3 p-2 bg-black bg-opacity-75 rounded-3 border border-secondary text-end small" style="pointer-events: none;">
-                    <div class="text-warning fw-bold fs-8 mb-0"><i class="fa-solid fa-stopwatch me-1"></i>タイム</div>
-                    <div class="fs-5 fw-bold font-monospace text-white" id="sim-timer">00:00.0</div>
-                    <div class="text-info fs-8 fw-bold" id="sim-leader-name">先頭: ----</div>
-                </div>
-
             </div>
-
-            <!-- Commentary Text Footer -->
-            <div class="custom-card p-3 bg-black border-secondary">
-                <div class="d-flex align-items-center gap-2 mb-1">
-                    <span class="badge bg-danger fs-7"><i class="fa-solid fa-microphone-lines me-1"></i>実況</span>
-                    <span id="sim-commentary-headline" class="text-warning fw-bold fs-6">さあ、全馬一斉に綺麗にスタートを切りました！</span>
-                </div>
-                <div class="text-white-50 fs-7 ps-4" id="sim-commentary-sub">
-                    好スタートを切ったキャラクターが先頭を奪う！
-                </div>
-            </div>
-
-        </section>
-
-        <!-- ================= SCREEN 3: 結果画面 (RESULTS SCREEN) ================= -->
-        <section id="screen-result" class="app-screen">
-
-            <div class="custom-card text-center p-4 bg-dark border-warning mb-3">
-                <div class="badge bg-warning text-dark fs-6 px-3 py-2 rounded-pill mb-2 fw-bold">🏁 GOAL IN !!</div>
-                <h2 id="result-winner-title" class="fw-black text-warning display-6 mb-1">1着: アグネスクラウン</h2>
-                <p id="result-winner-sub" class="text-light opacity-75 small mb-3">タイム: 1:58.4 | 圧巻のラストスパートで1着フィニッシュ！</p>
-
-                <div class="d-flex justify-content-center gap-3">
-                    <button id="btn-restart-sim" class="btn btn-warning fw-bold rounded-pill px-4 text-dark shadow">
-                        <i class="fa-solid fa-rotate-left me-1"></i> もう一度レースを走る
-                    </button>
-                    <button id="btn-back-to-racecard" class="btn btn-outline-light fw-bold rounded-pill px-4">
-                        <i class="fa-solid fa-list me-1"></i> 出走表に戻る
-                    </button>
-                </div>
-            </div>
-
-            <!-- Full Ranking Results Table -->
-            <div class="custom-card p-3">
-                <h5 class="text-warning fw-bold mb-3 border-bottom border-secondary pb-2">
-                    <i class="fa-solid fa-square-poll-vertical me-2"></i>全着順結果一覧
-                </h5>
-                <div class="table-responsive">
-                    <table class="table table-dark table-striped align-middle mb-0 text-white">
-                        <thead>
-                            <tr class="text-warning small">
-                                <th class="text-center" style="width: 10%;">着順</th>
-                                <th class="text-center" style="width: 10%;">馬番</th>
-                                <th style="width: 35%;">ウマ娘キャラ</th>
-                                <th class="text-center" style="width: 15%;">脚質</th>
-                                <th class="text-center" style="width: 15%;">タイム</th>
-                                <th class="text-center" style="width: 15%;">着差</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tbody-results">
-                            <!-- Populated dynamically -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-        </section>
-
+        </div>
     </main>
 
     <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <!-- Standalone Simulation JS -->
     <script src="/static/app.js"></script>
 </body>
 </html>
