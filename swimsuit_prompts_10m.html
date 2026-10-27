@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>水着美少女プロンプト1000万</title>
+<style>
+:root{--bg:#f2f8fb;--card:#fff;--text:#1d2a33;--sub:#5f7380;--accent:#1f86b5;--line:#d6e7ef}
+@media (prefers-color-scheme: dark){:root{--bg:#121b21;--card:#1b2830;--text:#e8f2f6;--sub:#9fb4bf;--accent:#5cc3ec;--line:#2c3e48}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;font-size:15px;line-height:1.6}
+header{padding:16px;text-align:center}
+h1{margin:0;font-size:20px;color:var(--accent)}
+header p{margin:4px 0 0;color:var(--sub);font-size:13px}
+main{max-width:760px;margin:0 auto;padding:0 16px 40px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+label{font-size:12px;color:var(--sub);display:block}
+select,input{width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);font-size:15px}
+.row{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+button{flex:1;min-width:90px;padding:10px;border:0;border-radius:8px;background:var(--accent);color:#fff;font-size:14px;font-weight:600;cursor:pointer}
+button.sub{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+button:disabled{opacity:.4}
+.item{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px}
+.item h2{margin:0 0 4px;font-size:14px;color:var(--accent);display:flex;justify-content:space-between;align-items:center}
+.item h2 button{flex:none;min-width:0;padding:4px 12px;font-size:12px}
+.ja{font-size:13px;color:var(--sub);margin-bottom:6px}
+.en{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;word-break:break-word;background:var(--bg);padding:8px;border-radius:8px}
+.neg{font-size:12px;color:var(--sub);word-break:break-word}
+.pager{display:flex;align-items:center;gap:8px;justify-content:center;margin:12px 0}
+.pager span{font-size:13px;color:var(--sub);white-space:nowrap}
+.pager button{flex:none;min-width:70px}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--accent);color:#fff;padding:8px 16px;border-radius:20px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+<header>
+  <h1>実写・水着美少女プロンプト 10,000,000パターン</h1>
+  <p>水着 × 髪型 × 場所 × 光 × 表情 × ポーズ × 構図(各10種)= 10,000,000通り。Stable Diffusion等向け英語プロンプト</p>
+</header>
+<main>
+  <div class="panel">
+    <div class="grid" id="filters"></div>
+    <div class="row">
+      <input id="jump" type="number" min="1" max="10000000" placeholder="番号 1〜10000000" style="flex:1">
+      <button id="btnJump" style="flex:none">表示</button>
+    </div>
+    <div class="row">
+      <button id="btnRandom">ランダム1件</button>
+      <button id="btnReset" class="sub">絞り込み解除</button>
+      <button id="btnDl" class="sub">TXT保存(最大1万件)</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <label>共通ネガティブプロンプト</label>
+    <div class="neg" id="negText"></div>
+    <div class="row"><button class="sub" id="btnNeg">ネガティブをコピー</button></div>
+  </div>
+
+  <div class="pager" id="pagerTop"></div>
+  <div id="list"></div>
+  <div class="pager" id="pagerBottom"></div>
+</main>
+<div id="toast"></div>
+
+<script>
+// 7軸×各10種 = 10,000,000パターン。番号(1〜10000000)から一意に組み合わせを決定する
+const AXES = [
+  {key:"swim", name:"水着", items:[
+    ["白のワンピース水着","white one-piece swimsuit"],
+    ["ネイビーのハイネック水着","navy high-neck one-piece swimsuit"],
+    ["花柄のフリルビキニ","floral print ruffled bikini"],
+    ["黒のスポーティー水着","black sporty two-piece swimsuit"],
+    ["ギンガムチェック水着","gingham check swimsuit"],
+    ["パステルのタンキニ","pastel tankini"],
+    ["ラッシュガードとショートパンツ","rash guard and board shorts"],
+    ["水着+シースルーカーディガン","swimsuit with sheer beach cardigan"],
+    ["ボーダー柄のレトロ水着","striped retro one-piece swimsuit"],
+    ["水着+パレオ","swimsuit with flowing pareo wrap"]
+  ]},
+  {key:"hair", name:"髪型", items:[
+    ["黒髪ロング","long straight black hair"],
+    ["濡れ髪のボブ","wet-look bob haircut"],
+    ["明るい茶髪ウェーブ","loose wavy light brown hair"],
+    ["ハイポニーテール","high ponytail"],
+    ["お団子ヘア","messy bun hairstyle"],
+    ["ショートヘア","short haircut"],
+    ["三つ編み","side braid"],
+    ["麦わら帽子+ロング","long hair with straw sun hat"],
+    ["サングラス+ハーフアップ","half-up hair, sunglasses on head"],
+    ["ミディアムの外ハネ","shoulder-length hair with flipped ends"]
+  ]},
+  {key:"scene", name:"場所", items:[
+    ["沖縄の白い砂浜","white sand beach in Okinawa, turquoise sea"],
+    ["ホテルのプールサイド","luxury hotel poolside"],
+    ["夕暮れの海辺","beach at sunset"],
+    ["岩場の入り江","rocky cove, clear water"],
+    ["ヤシの木のビーチ","tropical beach with palm trees"],
+    ["インフィニティプール","infinity pool overlooking the ocean"],
+    ["桟橋","wooden pier over the sea"],
+    ["ビーチパラソルの下","under a beach umbrella"],
+    ["ナイトプール","night pool with colorful lights"],
+    ["浅瀬の波打ち際","shallow shoreline, gentle waves"]
+  ]},
+  {key:"light", name:"光", items:[
+    ["自然光・85mm","bright natural sunlight, 85mm lens, f/1.8"],
+    ["ゴールデンアワー","golden hour backlight, warm tones"],
+    ["フィルム調","35mm film photo, Kodak Portra 400, film grain"],
+    ["シネマティック","cinematic lighting, teal and orange grading"],
+    ["夏の強い日差し","harsh summer sun, vivid colors"],
+    ["曇天の柔らかい光","overcast diffused light, soft tones"],
+    ["ネオンの反射光","neon rim light, colorful reflections"],
+    ["水面の反射光","sunlight reflecting off water, sparkles"],
+    ["ファッション誌風","resort fashion magazine editorial"],
+    ["逆光のリムライト","backlit rim light, glowing hair"]
+  ]},
+  {key:"expr", name:"表情", items:[
+    ["微笑み","soft smile"],
+    ["自然な笑顔","natural laugh"],
+    ["穏やかな表情","serene expression"],
+    ["カメラ目線","looking at camera"],
+    ["遠くを見る","looking at the horizon, candid"],
+    ["はにかみ","shy smile"],
+    ["目を閉じて風を感じる","eyes closed, enjoying the breeze"],
+    ["振り返りの笑顔","smiling over her shoulder"],
+    ["驚いた表情","pleasantly surprised expression"],
+    ["クールな表情","cool confident expression"]
+  ]},
+  {key:"pose", name:"ポーズ", items:[
+    ["立ちポーズ","standing pose"],
+    ["波打ち際を歩く","walking along the shore"],
+    ["タオルに座る","sitting on a beach towel"],
+    ["浮き輪を持つ","holding a swim ring"],
+    ["髪を押さえる","hand holding her hair in the wind"],
+    ["ビーチボールを持つ","holding a beach ball"],
+    ["プールの縁に座る","sitting on the pool edge, feet in water"],
+    ["水をすくう","scooping water with her hands"],
+    ["ドリンクを持つ","holding a tropical drink"],
+    ["手を振る","waving at the camera"]
+  ]},
+  {key:"comp", name:"構図", items:[
+    ["バストアップ","close-up portrait"],
+    ["上半身","upper body shot"],
+    ["全身","full body shot"],
+    ["引きの風景込み","wide shot with scenery"],
+    ["ローアングル","low angle shot"],
+    ["ハイアングル","high angle shot"],
+    ["横顔","side profile view"],
+    ["三分割構図","rule of thirds composition"],
+    ["ドローン俯瞰","aerial drone shot"],
+    ["背景ぼかし","shallow depth of field, bokeh background"]
+  ]}
+];
+const QUALITY = "RAW photo, photorealistic, ultra realistic, 8k, sharp focus, detailed skin texture, beautiful Japanese woman in her 20s, adult, solo, swimwear fashion photography";
+const NEGATIVE = "anime, cartoon, illustration, 3d render, cgi, painting, lowres, blurry, bad anatomy, bad hands, extra fingers, deformed face, plastic skin, oversaturated, watermark, text, logo, worst quality, nsfw, nude, child";
+const D = AXES.length, TOTAL = 10 ** D, PER = 20, DL_MAX = 10000;
+
+function digits(n){ // n: 1..TOTAL → 各軸の番号(先頭軸が最上位桁)
+  let i = n-1; const idx = new Array(D);
+  for(let k=D-1;k>=0;k--){ idx[k] = i%10; i = Math.floor(i/10); }
+  return idx;
+}
+function build(n){
+  const parts = digits(n).map((j,k)=>AXES[k].items[j]);
+  return {n, en:[QUALITY, ...parts.map(x=>x[1])].join(", "), ja:parts.map(x=>x[0]).join(" / ")};
+}
+
+const $ = id=>document.getElementById(id);
+const filters = {};
+let page = 1, free = [], count = TOTAL;
+
+AXES.forEach(a=>{
+  const w = document.createElement("div");
+  w.innerHTML = `<label>${a.name}</label><select data-k="${a.key}"><option value="">すべて</option>${a.items.map((x,j)=>`<option value="${j}">${x[0]}</option>`).join("")}</select>`;
+  w.querySelector("select").addEventListener("change", e=>{filters[a.key]=e.target.value; page=1; refresh();});
+  $("filters").appendChild(w);
+});
+$("negText").textContent = NEGATIVE;
+
+// 絞り込み結果のm番目(0始まり)→パターン番号。全件走査せず桁計算で求める
+function nth(m){
+  const idx = AXES.map(a=>filters[a.key] ? +filters[a.key] : 0);
+  for(let f=free.length-1;f>=0;f--){ idx[free[f]] = m%10; m = Math.floor(m/10); }
+  return idx.reduce((s,d)=>s*10+d, 0) + 1;
+}
+function refresh(){
+  free = AXES.map((a,k)=>filters[a.key] ? -1 : k).filter(k=>k>=0);
+  count = 10 ** free.length;
+  render();
+}
+function render(){
+  const pages = Math.ceil(count/PER);
+  page = Math.min(Math.max(1,page), pages);
+  const from = (page-1)*PER, to = Math.min(count, from+PER), cards = [];
+  for(let m=from;m<to;m++) cards.push(card(build(nth(m))));
+  $("list").innerHTML = cards.join("");
+  const pg = `<button class="sub" data-p="-1" ${page<=1?"disabled":""}>前へ</button><span>${page.toLocaleString()} / ${pages.toLocaleString()}(${count.toLocaleString()}件)</span><button class="sub" data-p="1" ${page>=pages?"disabled":""}>次へ</button>`;
+  $("pagerTop").innerHTML = $("pagerBottom").innerHTML = pg;
+}
+function card(d){
+  return `<div class="item"><h2>No.${String(d.n).padStart(8,"0")}<button data-copy="${d.n}">コピー</button></h2><div class="ja">${d.ja}</div><div class="en">${d.en}</div></div>`;
+}
+function copy(text){
+  (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(()=>toast("コピーしました")).catch(()=>{
+    const t=document.createElement("textarea"); t.value=text; document.body.appendChild(t); t.select(); document.execCommand("copy"); t.remove(); toast("コピーしました");
+  });
+}
+function toast(m){ const t=$("toast"); t.textContent=m; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),1200); }
+function showOne(n){ $("list").innerHTML = card(build(n)); $("pagerTop").innerHTML = $("pagerBottom").innerHTML = `<button class="sub" id="back">一覧に戻る</button>`; }
+
+document.addEventListener("click", e=>{
+  const b = e.target.closest("button"); if(!b) return;
+  if(b.dataset.copy) copy(build(+b.dataset.copy).en);
+  else if(b.dataset.p){ page += +b.dataset.p; render(); window.scrollTo(0,0); }
+  else if(b.id==="back") render();
+});
+$("btnJump").onclick = ()=>{ const n=+$("jump").value; if(Number.isInteger(n)&&n>=1&&n<=TOTAL) showOne(n); else toast(`1〜${TOTAL.toLocaleString()}で入力`); };
+$("btnRandom").onclick = ()=>showOne(nth(Math.floor(Math.random()*count)));
+$("btnReset").onclick = ()=>{ document.querySelectorAll("#filters select").forEach(s=>s.value=""); for(const k in filters) filters[k]=""; page=1; refresh(); };
+$("btnNeg").onclick = ()=>copy(NEGATIVE);
+// 1000万件の全件出力は約2GBになるため、現在ページから最大1万件を保存する
+$("btnDl").onclick = ()=>{
+  const from = (page-1)*PER, to = Math.min(count, from+DL_MAX);
+  let s = "Negative: "+NEGATIVE+"\n\n";
+  for(let m=from;m<to;m++){ const d=build(nth(m)); s += `No.${String(d.n).padStart(8,"0")} [${d.ja}]\n${d.en}\n\n`; }
+  const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([s],{type:"text/plain"})); a.download=`swimsuit_prompts_${from+1}-${to}.txt`; a.click();
+  toast(`${(to-from).toLocaleString()}件を保存`);
+};
+refresh();
+</script>
+</body>
+</html>
