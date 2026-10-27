@@ -9,7 +9,7 @@ import os
 from typing import List, Optional, Dict, Any
 from src.models import RaceInfo, HorseEntry
 
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "racing_app.db")
+DB_PATH = os.environ.get("KEIBA_DB_PATH") or os.path.join(os.path.dirname(os.path.dirname(__file__)), "racing_app.db")
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH)
@@ -76,6 +76,35 @@ def init_db():
             predicted_confidence REAL NOT NULL,
             top_pick_odds REAL NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+
+    # Prediction snapshot taken BEFORE the result is known (frozen once a result is recorded)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS prediction_snapshots (
+            race_id TEXT PRIMARY KEY,
+            generation INTEGER NOT NULL,
+            snapshot_json TEXT NOT NULL,
+            source TEXT NOT NULL DEFAULT 'pre_race',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+
+    # Post-race verification reports
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS race_reviews (
+            race_id TEXT PRIMARY KEY,
+            review_json TEXT NOT NULL,
+            reviewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+
+    # Persistent learning state (generation, combiner coefficients, learning history)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS learning_state (
+            key TEXT PRIMARY KEY,
+            value_json TEXT NOT NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     """)
 
@@ -268,3 +297,110 @@ def get_all_completed_races() -> List[Dict[str, Any]]:
     conn.close()
 
     return [dict(r) for r in rows]
+
+def save_prediction_snapshot(race_id: str, generation: int, snapshot: Dict[str, Any], source: str = "pre_race") -> bool:
+    """
+    Store the latest pre-race prediction. Once a result exists the snapshot is frozen
+    so that post-race verification always compares against what was predicted beforehand.
+    Returns True when the snapshot was written.
+    """
+    init_db()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT 1 FROM race_results WHERE race_id = ?", (race_id,))
+    if cursor.fetchone():
+        conn.close()
+        return False
+    cursor.execute("""
+        INSERT OR REPLACE INTO prediction_snapshots (race_id, generation, snapshot_json, source, created_at)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+    """, (race_id, generation, json.dumps(snapshot, ensure_ascii=False), source))
+    conn.commit()
+    conn.close()
+    return True
+
+def get_prediction_snapshot(race_id: str) -> Optional[Dict[str, Any]]:
+    init_db()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM prediction_snapshots WHERE race_id = ?", (race_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if not row:
+        return None
+    snap = json.loads(row["snapshot_json"])
+    snap["source"] = row["source"]
+    snap["created_at"] = str(row["created_at"])
+    return snap
+
+def save_race_review(race_id: str, review: Dict[str, Any]) -> None:
+    init_db()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT OR REPLACE INTO race_reviews (race_id, review_json, reviewed_at)
+        VALUES (?, ?, CURRENT_TIMESTAMP)
+    """, (race_id, json.dumps(review, ensure_ascii=False)))
+    conn.commit()
+    conn.close()
+
+def get_race_review(race_id: str) -> Optional[Dict[str, Any]]:
+    init_db()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT review_json FROM race_reviews WHERE race_id = ?", (race_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return json.loads(row["review_json"]) if row else None
+
+def list_reviewed_races() -> List[Dict[str, Any]]:
+    """Reviewed races with their snapshot and result, oldest result first."""
+    init_db()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT rv.race_id, rv.review_json, ps.snapshot_json,
+               res.first_horse_number, res.second_horse_number, res.third_horse_number,
+               res.win_payout, res.place_payout
+        FROM race_reviews rv
+        INNER JOIN prediction_snapshots ps ON rv.race_id = ps.race_id
+        INNER JOIN race_results res ON rv.race_id = res.race_id
+        ORDER BY res.recorded_at ASC, res.id ASC
+    """)
+    rows = cursor.fetchall()
+    conn.close()
+    out = []
+    for r in rows:
+        out.append({
+            "race_id": r["race_id"],
+            "review": json.loads(r["review_json"]),
+            "snapshot": json.loads(r["snapshot_json"]),
+            "result": {
+                "first_horse_number": r["first_horse_number"],
+                "second_horse_number": r["second_horse_number"],
+                "third_horse_number": r["third_horse_number"],
+                "win_payout": r["win_payout"],
+                "place_payout": r["place_payout"],
+            },
+        })
+    return out
+
+def get_learning_state(key: str, default: Any = None) -> Any:
+    init_db()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT value_json FROM learning_state WHERE key = ?", (key,))
+    row = cursor.fetchone()
+    conn.close()
+    return json.loads(row["value_json"]) if row else default
+
+def set_learning_state(key: str, value: Any) -> None:
+    init_db()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT OR REPLACE INTO learning_state (key, value_json, updated_at)
+        VALUES (?, ?, CURRENT_TIMESTAMP)
+    """, (key, json.dumps(value, ensure_ascii=False)))
+    conn.commit()
+    conn.close()

@@ -60,6 +60,78 @@ document.addEventListener("DOMContentLoaded", () => {
     // Load available races and performance stats on start
     loadRaces();
     fetchPerformanceStats();
+    fetchLearningReport();
+
+    function esc(v) {
+        return String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    }
+
+    function renderReview(rv) {
+        const box = document.getElementById("review-latest");
+        if (!box) return;
+        if (!rv) {
+            box.innerHTML = "このレースはまだ結果未入力です。";
+            return;
+        }
+        const finish = rv.top_pick.finish ? `${rv.top_pick.finish}着` : "4着以下";
+        const missBadges = rv.miss_types.map(m =>
+            `<span class="badge ${m.code === "HIT" ? "bg-success" : "bg-danger"} me-1 mb-1">${esc(m.label)}</span>`).join("");
+        const missDetails = rv.miss_types.map(m => `<li>${esc(m.detail)}</li>`).join("");
+        const factors = rv.factor_findings.length
+            ? rv.factor_findings.map(f => `<li class="${f.direction === "over_trusted" ? "text-danger" : "text-primary"}">${esc(f.text)}</li>`).join("")
+            : "<li>目立った要因の差はありません</li>";
+        const applied = (rv.applied_feedback || []).map(a => `<li>${esc(a)}</li>`).join("");
+        box.innerHTML = `
+            <div class="mb-2">${missBadges}</div>
+            <div class="mb-1"><strong>◎ ${rv.top_pick.horse_number} ${esc(rv.top_pick.horse_name)}</strong>（予測勝率 ${rv.top_pick.win_probability}%）→ <strong>${finish}</strong></div>
+            <div class="mb-1">勝ち馬: <strong>${rv.winner.horse_number} ${esc(rv.winner.horse_name)}</strong>（AI ${rv.winner.model_rank ?? "-"}番手 / ${rv.winner.market_rank ?? "-"}番人気 / 予測勝率 ${rv.winner.win_probability}%）</div>
+            <div class="mb-2">予測上位3頭と実際の3着内の一致: <strong>${rv.top3_overlap}/3</strong></div>
+            <div class="fw-bold text-dark">何が間違っていたか</div>
+            <ul class="mb-2 ps-3">${missDetails}${factors}<li>${esc(rv.vs_market)}</li></ul>
+            <div class="text-muted mb-2">対数損失 AI ${rv.metrics.model_log_loss} / 市場 ${rv.metrics.market_log_loss}（小さいほど正確）</div>
+            ${applied ? `<div class="fw-bold text-dark">次回予想への反映</div><ul class="mb-0 ps-3">${applied}</ul>` : ""}
+        `;
+    }
+
+    async function fetchLearningReport() {
+        const box = document.getElementById("review-aggregate");
+        if (!box) return;
+        try {
+            const res = await fetch("/api/feedback/report");
+            const data = await res.json();
+            if (data.status !== "success") return;
+            const rep = data.report;
+            const agg = rep.aggregate;
+            const meta = document.getElementById("review-report-meta");
+            if (meta) meta.textContent = `検証済み ${agg.total_races} レース`;
+            if (agg.total_races === 0) {
+                box.innerHTML = "検証済みレースはまだありません。";
+                return;
+            }
+            if (rep.recent_reviews && rep.recent_reviews.length && document.getElementById("review-latest").dataset.locked !== "1") {
+                renderReview(rep.recent_reviews[0]);
+            }
+            const half = (h, label) => h ? `<tr><td>${label}</td><td>${h.races}</td><td>${h.avg_model_log_loss}</td><td>${h.avg_market_log_loss}</td><td>${h.win_hit_rate}%</td><td>${h.place_hit_rate}%</td></tr>` : "";
+            const misses = Object.entries(agg.miss_type_counts).map(([k, v]) => `<span class="badge bg-light text-dark border me-1 mb-1">${esc(k)} ${v}</span>`).join("");
+            const tendencies = agg.feature_tendencies.slice(0, 4).map(t => `<li>${esc(t.verdict)}</li>`).join("") || "<li>まだ傾向は出ていません</li>";
+            const coefs = rep.combiner.filter(c => c.effect !== "変更なし").map(c => `<li>${esc(c.label)}: ${esc(c.effect)}（${c.value}）</li>`).join("") || "<li>補正なし（生モデルのまま）</li>";
+            box.innerHTML = `
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered mb-2 text-center align-middle">
+                        <thead class="table-light"><tr><th>期間</th><th>R数</th><th>AI損失</th><th>市場損失</th><th>単勝</th><th>複勝</th></tr></thead>
+                        <tbody>${half(agg.first_half, "前半")}${half(agg.second_half, "後半")}</tbody>
+                    </table>
+                </div>
+                <div class="mb-2">${misses}</div>
+                <div class="fw-bold text-dark">繰り返し出ている誤り</div>
+                <ul class="mb-2 ps-3">${tendencies}</ul>
+                <div class="fw-bold text-dark">現在の学習済み補正</div>
+                <ul class="mb-0 ps-3">${coefs}</ul>
+            `;
+        } catch (err) {
+            console.error("Failed to fetch learning report:", err);
+        }
+    }
 
     async function fetchPerformanceStats() {
         try {
@@ -554,6 +626,14 @@ document.addEventListener("DOMContentLoaded", () => {
                 renderTrendAnalysisUI(data.trend_analysis);
                 renderPredictions(data.predictions);
                 renderRecommendations(data.recommendations);
+                const reviewBox = document.getElementById("review-latest");
+                if (data.review) {
+                    reviewBox.dataset.locked = "1";
+                    renderReview(data.review);
+                } else {
+                    reviewBox.dataset.locked = "0";
+                    fetchLearningReport();
+                }
 
                 displayRaceName.textContent = currentRace.race_name;
                 displayRaceMeta.textContent = `${currentRace.track_name}競馬場 | ${currentRace.surface_type}${currentRace.distance}m | 馬場: ${currentRace.track_condition} | 天候: ${currentRace.weather}`;
@@ -835,11 +915,16 @@ document.addEventListener("DOMContentLoaded", () => {
                 });
                 const result = await res.json();
                 if (result.status === "success") {
-                    alert(result.message);
                     const modalEl = document.getElementById("resultModal");
                     const modal = bootstrap.Modal.getInstance(modalEl);
                     if (modal) modal.hide();
+                    if (result.review) {
+                        document.getElementById("review-latest").dataset.locked = "1";
+                        renderReview(result.review);
+                    }
                     fetchPerformanceStats();
+                    fetchLearningReport();
+                    document.getElementById("review-report-card").scrollIntoView({ behavior: "smooth" });
                 } else {
                     alert("結果記録エラー: " + result.message);
                 }
@@ -898,6 +983,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const data = await res.json();
             alert(data.message);
             fetchPerformanceStats();
+            fetchLearningReport();
             if (currentRace) runPrediction(currentRace);
         } catch (err) {
             alert("自己学習に失敗しました。");

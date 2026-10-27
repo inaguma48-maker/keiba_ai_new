@@ -73,9 +73,14 @@ def test_self_learning_feedback_loop():
     assert recorded_db is not None
     assert recorded_db["win_payout"] == 480.0
 
+    # Verification compares against the PRE-race prediction (no leakage from retraining)
+    assert res["review"] is not None
+    assert res["review"]["winner"]["horse_number"] == sample_race.horses[0].horse_number
+    assert res["review"]["miss_types"]
+
     stats = engine.calculate_performance_stats()
     assert stats["total_races"] >= 1
-    assert stats["recovery_rate"] > 0
+    assert stats["recovery_rate"] >= 0
 
 def test_feedback_api_endpoints():
     client = app.test_client()

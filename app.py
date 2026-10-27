@@ -14,7 +14,7 @@ from src.data import get_sample_races, generate_synthetic_historical_data
 from src.predictor import HorseRacePredictor
 from src.strategy import calculate_betting_recommendations
 from src.jra_importer import parse_jra_text, fetch_and_parse_jra_url, auto_detect_jra_races
-from src.db import init_db, save_race, get_race_by_id, list_all_races, get_race_result
+from src.db import init_db, save_race, get_race_by_id, list_all_races, get_race_result, get_race_review
 from src.feedback_loop import SelfLearningEngine
 
 app = Flask(__name__)
@@ -29,6 +29,21 @@ sample_races_cache = {r.race_id: r for r in get_sample_races()}
 for s_race in sample_races_cache.values():
     if not get_race_by_id(s_race.race_id):
         save_race(s_race)
+
+def analyze_race(race: RaceInfo) -> Dict[str, Any]:
+    """Run prediction and keep a pre-race snapshot for post-race verification."""
+    predictions = predictor.predict_race(race)
+    volatility = predictor.calculate_race_volatility(race)
+    trend_analysis = predictor.analyze_3rd_place_trends(race)
+    recommendations = calculate_betting_recommendations(predictions, volatility)
+    if get_race_by_id(race.race_id):
+        learning_engine.snapshot_prediction(race, predictions)
+    return {
+        "predictions": predictions,
+        "volatility": volatility,
+        "trend_analysis": trend_analysis,
+        "recommendations": recommendations
+    }
 
 @app.route("/")
 def index():
@@ -50,20 +65,15 @@ def get_race_detail(race_id: str):
     if not race:
         return jsonify({"status": "error", "message": "Race not found"}), 404
 
-    predictions = predictor.predict_race(race)
-    volatility = predictor.calculate_race_volatility(race)
-    trend_analysis = predictor.analyze_3rd_place_trends(race)
-    recommendations = calculate_betting_recommendations(predictions, volatility)
+    analysis = analyze_race(race)
     result = get_race_result(race.race_id)
 
     return jsonify({
         "status": "success",
         "race": race.to_dict(),
-        "predictions": predictions,
-        "volatility": volatility,
-        "trend_analysis": trend_analysis,
-        "recommendations": recommendations,
-        "result": result
+        **analysis,
+        "result": result,
+        "review": get_race_review(race.race_id)
     })
 
 @app.route("/api/auto_fetch_jra", methods=["POST"])
@@ -76,16 +86,9 @@ def auto_fetch_jra():
         processed_results = []
         for race in races:
             save_race(race)
-            preds = predictor.predict_race(race)
-            vol = predictor.calculate_race_volatility(race)
-            trends = predictor.analyze_3rd_place_trends(race)
-            recs = calculate_betting_recommendations(preds, vol)
             processed_results.append({
                 "race": race.to_dict(),
-                "predictions": preds,
-                "volatility": vol,
-                "trend_analysis": trends,
-                "recommendations": recs
+                **analyze_race(race)
             })
 
         return jsonify({
@@ -114,19 +117,13 @@ def import_jra():
         # Save to SQLite Database for persistent storage
         save_race(race)
 
-        predictions = predictor.predict_race(race)
-        volatility = predictor.calculate_race_volatility(race)
-        trend_analysis = predictor.analyze_3rd_place_trends(race)
-        recommendations = calculate_betting_recommendations(predictions, volatility)
+        analysis = analyze_race(race)
 
         return jsonify({
             "status": "success",
             "message": "JRA出馬表を取り込み、データベースに保存しました。",
             "race": race.to_dict(),
-            "predictions": predictions,
-            "volatility": volatility,
-            "trend_analysis": trend_analysis,
-            "recommendations": recommendations
+            **analysis
         })
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -170,18 +167,12 @@ def predict_race():
         # Save to SQLite DB
         save_race(race)
 
-        predictions = predictor.predict_race(race)
-        volatility = predictor.calculate_race_volatility(race)
-        trend_analysis = predictor.analyze_3rd_place_trends(race)
-        recommendations = calculate_betting_recommendations(predictions, volatility)
+        analysis = analyze_race(race)
 
         return jsonify({
             "status": "success",
             "race": race.to_dict(),
-            "predictions": predictions,
-            "volatility": volatility,
-            "trend_analysis": trend_analysis,
-            "recommendations": recommendations
+            **analysis
         })
 
     except Exception as e:
@@ -235,14 +226,35 @@ def force_retrain():
     Trigger manual self-learning retrain cycle with historical and feedback data.
     """
     try:
-        res = learning_engine.retrain_from_feedback()
+        res = learning_engine.learn_from_feedback()
         stats = learning_engine.calculate_performance_stats()
         return jsonify({
             "status": "success",
-            "message": "AI自己学習モデルを再トレーニングし、モデルパラメータを更新しました。",
-            "retrain_summary": res,
+            "message": "検証済みレースでAIを再学習しました。\n" + "\n".join(res["feedback_notes"]),
+            "retrain_summary": res["base_model"],
+            "learning": res,
             "performance_stats": stats
         })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route("/api/feedback/review/<race_id>", methods=["GET"])
+def get_review(race_id: str):
+    """
+    Post-race verification report: what the pre-race prediction got wrong and how it was fed back.
+    """
+    review = get_race_review(race_id)
+    if not review:
+        return jsonify({"status": "error", "message": "このレースの検証結果はまだありません。"}), 404
+    return jsonify({"status": "success", "review": review})
+
+@app.route("/api/feedback/report", methods=["GET"])
+def get_learning_report():
+    """
+    Cumulative verification report: accuracy trend, recurring miss patterns, learned corrections.
+    """
+    try:
+        return jsonify({"status": "success", "report": learning_engine.get_learning_report()})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 

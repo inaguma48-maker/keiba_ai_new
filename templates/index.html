@@ -234,6 +234,26 @@
             </div>
         </div>
 
+        <!-- Post-race Verification & Feedback Report -->
+        <div class="card shadow-sm mb-4" id="review-report-card">
+            <div class="card-header bg-dark text-white fw-bold d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <span><i class="fa-solid fa-magnifying-glass-chart text-warning me-2"></i>予測検証 ＆ フィードバック学習レポート</span>
+                <span class="badge bg-secondary small" id="review-report-meta">検証済み 0 レース</span>
+            </div>
+            <div class="card-body p-3">
+                <div class="row g-3">
+                    <div class="col-lg-6">
+                        <h6 class="fw-bold mb-2"><i class="fa-solid fa-clipboard-check me-1 text-primary"></i>レース検証結果（事前予測 vs 実際の結果）</h6>
+                        <div id="review-latest" class="small text-muted">レース結果を入力すると、事前予測の何が間違っていたかをここに表示します。</div>
+                    </div>
+                    <div class="col-lg-6">
+                        <h6 class="fw-bold mb-2"><i class="fa-solid fa-chart-line me-1 text-success"></i>累積の精度推移と学習内容</h6>
+                        <div id="review-aggregate" class="small text-muted">データ蓄積中...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- STEP 1: Select or Auto-Fetch Race -->
         <div class="card card-step">
             <div class="card-step-header header-step-1">
@@ -518,7 +538,7 @@
                             </div>
                         </div>
                         <button type="submit" class="btn btn-warning w-100 fw-bold shadow">
-                            <i class="fa-solid fa-graduation-cap me-1"></i> 結果を記録してAIモデルを再学習・強化
+                            <i class="fa-solid fa-graduation-cap me-1"></i> 結果を記録して予測を検証・AIへフィードバック
                         </button>
                     </form>
                 </div>

@@ -13,6 +13,8 @@ from sklearn.ensemble import RandomForestClassifier
 
 from src.models import RaceInfo, HorseEntry
 from src.data import generate_synthetic_historical_data, extract_features
+from src.calibration import apply_combiner
+from src.race_review import DIAGNOSIS_FEATURES
 
 FEATURE_COLUMNS = [
     "age", "weight", "impost", "impost_ratio", "past_speed_rating",
@@ -22,16 +24,18 @@ FEATURE_COLUMNS = [
     "relative_speed", "relative_composite"
 ]
 
-MODEL_FILE_PATH = "model_cache.pkl"
+MODEL_FILE_PATH = os.environ.get("KEIBA_MODEL_PATH", "model_cache.pkl")
 
 class HorseRacePredictor:
     def __init__(self):
         self.win_model = None
         self.place_model = None
         self.is_trained = False
+        # Second-stage combiner coefficients learned from real race results (None = raw model)
+        self.combiner_coef = None
         self._load_or_train_default()
 
-    def train(self, df: pd.DataFrame):
+    def train(self, df: pd.DataFrame, sample_weight=None, save: bool = True):
         """
         Train LightGBM / RandomForest ensemble models for Win and Place prediction.
         """
@@ -49,7 +53,7 @@ class HorseRacePredictor:
             random_state=42,
             verbosity=-1
         )
-        self.win_model.fit(X, y_win)
+        self.win_model.fit(X, y_win, sample_weight=sample_weight)
 
         # Place Model: RandomForest for smooth place probability
         self.place_model = RandomForestClassifier(
@@ -57,10 +61,11 @@ class HorseRacePredictor:
             max_depth=7,
             random_state=42
         )
-        self.place_model.fit(X, y_place)
+        self.place_model.fit(X, y_place, sample_weight=sample_weight)
 
         self.is_trained = True
-        self._save_model()
+        if save:
+            self._save_model()
 
     def _save_model(self):
         try:
@@ -254,9 +259,17 @@ class HorseRacePredictor:
         # Normalize win probabilities to sum to 1.0
         sum_win = np.sum(raw_win_probs)
         if sum_win > 0:
-            norm_win_probs = raw_win_probs / sum_win
+            model_win_probs = raw_win_probs / sum_win
         else:
-            norm_win_probs = np.ones(len(race.horses)) / len(race.horses)
+            model_win_probs = np.ones(len(race.horses)) / len(race.horses)
+
+        # Market (public odds) probabilities, normalized to remove the takeout
+        implied = np.array([1.0 / h.odds if h.odds > 0 else 0.05 for h in race.horses])
+        market_probs = implied / implied.sum()
+
+        # Second-stage combiner learned from post-race feedback
+        horse_features = [self.horse_feature_values(h) for h in race.horses]
+        norm_win_probs = apply_combiner(self.combiner_coef, model_win_probs, market_probs, horse_features)
 
         # Normalize place probabilities to sum to min(3, total_horses)
         target_place_sum = min(3.0, float(len(race.horses)))
@@ -298,6 +311,8 @@ class HorseRacePredictor:
                 "jockey_name": h.jockey_name,
                 "odds": h.odds,
                 "win_probability": round(win_prob, 4),
+                "model_probability": round(float(model_win_probs[i]), 4),
+                "market_probability": round(float(market_probs[i]), 4),
                 "place_probability": round(place_prob, 4),
                 "win_ev": round(win_ev, 3),
                 "value_edge": value_edge,
@@ -309,3 +324,26 @@ class HorseRacePredictor:
         # Sort by predicted win probability descending
         results.sort(key=lambda x: x["win_probability"], reverse=True)
         return results
+
+    @staticmethod
+    def horse_feature_values(h: HorseEntry) -> Dict[str, float]:
+        return {key: float(getattr(h, key)) for key in DIAGNOSIS_FEATURES}
+
+    def build_snapshot(self, race: RaceInfo, predictions: List[Dict[str, Any]], generation: int) -> Dict[str, Any]:
+        """Pre-race record of what was predicted, used later for post-race verification."""
+        by_num = {h.horse_number: h for h in race.horses}
+        horses = []
+        for p in predictions:
+            h = by_num[p["horse_number"]]
+            horses.append({
+                "horse_number": p["horse_number"],
+                "horse_name": p["horse_name"],
+                "odds": p["odds"],
+                "win_probability": p["win_probability"],
+                "model_probability": p["model_probability"],
+                "market_probability": p["market_probability"],
+                "place_probability": p["place_probability"],
+                "features": self.horse_feature_values(h),
+            })
+        return {"race_id": race.race_id, "race_name": race.race_name,
+                "generation": generation, "horses": horses}
