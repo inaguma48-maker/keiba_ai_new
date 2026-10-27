@@ -25,7 +25,7 @@ button:disabled{opacity:.4}
 .item h2{margin:0 0 4px;font-size:14px;color:var(--accent);display:flex;justify-content:space-between;align-items:center}
 .item h2 button{flex:none;min-width:0;padding:4px 12px;font-size:12px}
 .ja{font-size:13px;color:var(--sub);margin-bottom:6px}
-.en{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;word-break:break-word;background:var(--bg);padding:8px;border-radius:8px}
+.en{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;word-break:break-word;white-space:pre-wrap;background:var(--bg);padding:8px;border-radius:8px}
 .neg{font-size:12px;color:var(--sub);word-break:break-word}
 .pager{display:flex;align-items:center;gap:8px;justify-content:center;margin:12px 0}
 .pager span{font-size:13px;color:var(--sub);white-space:nowrap}
@@ -37,9 +37,17 @@ button:disabled{opacity:.4}
 <body>
 <header>
   <h1>実写・水着美少女プロンプト 10,000,000パターン</h1>
-  <p>水着 × 髪型 × 場所 × 光 × 表情 × ポーズ × 構図(各10種)= 10,000,000通り。Stable Diffusion等向け英語プロンプト</p>
+  <p>水着 × 髪型 × 場所 × 光 × 表情 × ポーズ × 構図(各10種)= 10,000,000通り。Stable Diffusion / ChatGPT / Grok 対応</p>
 </header>
 <main>
+  <div class="panel">
+    <label>出力形式</label>
+    <select id="fmt">
+      <option value="sd">Stable Diffusion(タグ形式+ネガティブ)</option>
+      <option value="gpt">ChatGPT(自然文・指示形式)</option>
+      <option value="grok">Grok(自然文・1段落)</option>
+    </select>
+  </div>
   <div class="panel">
     <div class="grid" id="filters"></div>
     <div class="row">
@@ -53,7 +61,7 @@ button:disabled{opacity:.4}
     </div>
   </div>
 
-  <div class="panel">
+  <div class="panel" id="negPanel">
     <label>共通ネガティブプロンプト</label>
     <div class="neg" id="negText"></div>
     <div class="row"><button class="sub" id="btnNeg">ネガティブをコピー</button></div>
@@ -162,9 +170,20 @@ function digits(n){ // n: 1..TOTAL → 各軸の番号(先頭軸が最上位桁)
   for(let k=D-1;k>=0;k--){ idx[k] = i%10; i = Math.floor(i/10); }
   return idx;
 }
+// ChatGPT・Grokはネガティブプロンプト非対応のため、除外条件を本文に含める
+const FORMATS = {
+  sd: e=>[QUALITY, ...e].join(", "),
+  gpt: ([swim,hair,scene,light,expr,pose,comp])=>
+    `Create a photorealistic image: a beautiful adult Japanese woman in her 20s wearing a ${swim}, in a tasteful resort swimwear fashion photoshoot.\n`+
+    `Hairstyle: ${hair}. Setting: ${scene}. Lighting: ${light}. Expression: ${expr}. Pose: ${pose}. Composition: ${comp}.\n`+
+    `Style: realistic photograph, natural skin texture, high detail. No text, watermark, or logos.`,
+  grok: ([swim,hair,scene,light,expr,pose,comp])=>
+    `Photorealistic photo of a beautiful adult Japanese woman in her 20s wearing a ${swim}, ${hair}, ${scene}, ${pose}, ${expr}, ${light}, ${comp}. Tasteful resort swimwear fashion shot, natural skin texture, highly detailed, no text or watermark.`
+};
+let fmt = "sd";
 function build(n){
   const parts = digits(n).map((j,k)=>AXES[k].items[j]);
-  return {n, en:[QUALITY, ...parts.map(x=>x[1])].join(", "), ja:parts.map(x=>x[0]).join(" / ")};
+  return {n, en:FORMATS[fmt](parts.map(x=>x[1])), ja:parts.map(x=>x[0]).join(" / ")};
 }
 
 const $ = id=>document.getElementById(id);
@@ -178,6 +197,7 @@ AXES.forEach(a=>{
   $("filters").appendChild(w);
 });
 $("negText").textContent = NEGATIVE;
+$("fmt").addEventListener("change", e=>{ fmt=e.target.value; $("negPanel").hidden = fmt!=="sd"; render(); });
 
 // 絞り込み結果のm番目(0始まり)→パターン番号。全件走査せず桁計算で求める
 function nth(m){
@@ -223,9 +243,9 @@ $("btnNeg").onclick = ()=>copy(NEGATIVE);
 // 1000万件の全件出力は約2GBになるため、現在ページから最大1万件を保存する
 $("btnDl").onclick = ()=>{
   const from = (page-1)*PER, to = Math.min(count, from+DL_MAX);
-  let s = "Negative: "+NEGATIVE+"\n\n";
+  let s = fmt==="sd" ? "Negative: "+NEGATIVE+"\n\n" : "";
   for(let m=from;m<to;m++){ const d=build(nth(m)); s += `No.${String(d.n).padStart(8,"0")} [${d.ja}]\n${d.en}\n\n`; }
-  const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([s],{type:"text/plain"})); a.download=`swimsuit_prompts_${from+1}-${to}.txt`; a.click();
+  const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([s],{type:"text/plain"})); a.download=`swimsuit_prompts_${fmt}_${from+1}-${to}.txt`; a.click();
   toast(`${(to-from).toLocaleString()}件を保存`);
 };
 refresh();
