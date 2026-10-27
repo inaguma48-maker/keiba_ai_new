@@ -46,6 +46,8 @@ button:disabled{opacity:.4}
       <option value="sd">Stable Diffusion(タグ形式+ネガティブ)</option>
       <option value="gpt">ChatGPT(自然文・指示形式)</option>
       <option value="grok">Grok(自然文・1段落)</option>
+      <option value="gpt_ja">ChatGPT 日本語(自然文・指示形式)</option>
+      <option value="grok_ja">Grok 日本語(自然文・1段落)</option>
     </select>
   </div>
   <div class="panel">
@@ -178,12 +180,18 @@ const FORMATS = {
     `Hairstyle: ${hair}. Setting: ${scene}. Lighting: ${light}. Expression: ${expr}. Pose: ${pose}. Composition: ${comp}.\n`+
     `Style: realistic photograph, natural skin texture, high detail. No text, watermark, or logos.`,
   grok: ([swim,hair,scene,light,expr,pose,comp])=>
-    `Photorealistic photo of a beautiful adult Japanese woman in her 20s wearing a ${swim}, ${hair}, ${scene}, ${pose}, ${expr}, ${light}, ${comp}. Tasteful resort swimwear fashion shot, natural skin texture, highly detailed, no text or watermark.`
+    `Photorealistic photo of a beautiful adult Japanese woman in her 20s wearing a ${swim}, ${hair}, ${scene}, ${pose}, ${expr}, ${light}, ${comp}. Tasteful resort swimwear fashion shot, natural skin texture, highly detailed, no text or watermark.`,
+  gpt_ja: ([swim,hair,scene,light,expr,pose,comp])=>
+    `写実的な写真を生成してください:20代の日本人の成人女性が${swim}を着た、上品なリゾート水着のファッション撮影。\n`+
+    `髪型:${hair}。場所:${scene}。光:${light}。表情:${expr}。ポーズ:${pose}。構図:${comp}。\n`+
+    `スタイル:実写の写真、自然な肌の質感、高精細。文字・透かし・ロゴは入れないでください。`,
+  grok_ja: ([swim,hair,scene,light,expr,pose,comp])=>
+    `${swim}を着た20代の日本人の成人女性の実写写真。${hair}、${scene}、${pose}、${expr}、${light}、${comp}。上品なリゾート水着のファッション写真、自然な肌の質感、高精細、文字や透かしなし。`
 };
 let fmt = "sd";
 function build(n){
   const parts = digits(n).map((j,k)=>AXES[k].items[j]);
-  return {n, en:FORMATS[fmt](parts.map(x=>x[1])), ja:parts.map(x=>x[0]).join(" / ")};
+  return {n, en:FORMATS[fmt](parts.map(x=>x[fmt.endsWith("_ja") ? 0 : 1])), ja:parts.map(x=>x[0]).join(" / ")};
 }
 
 const $ = id=>document.getElementById(id);
