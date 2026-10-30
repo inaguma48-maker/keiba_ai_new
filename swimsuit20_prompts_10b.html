@@ -199,8 +199,22 @@ const AXES = [
     ["ファッション誌の撮影","resort fashion magazine editorial photo"]
   ]}
 ];
-const QUALITY = "RAW photo, real photograph, photorealistic, ultra realistic, 8k, sharp focus, detailed skin texture, beautiful 20-year-old Japanese woman, adult, solo, swimwear fashion photography";
-const NEGATIVE = "anime, cartoon, illustration, drawing, painting, 3d render, cgi, doll, plastic skin, lowres, blurry, bad anatomy, bad hands, extra fingers, deformed face, oversaturated, watermark, text, logo, worst quality, nsfw, nude, child, teenager";
+// 「AI顔」対策:理想化する語(beautiful, 8k等)を避け、加工なしの肌・顔の左右差・個別の顔立ちを指定する
+const QUALITY = "RAW photo, real candid photograph, photorealistic, unretouched, natural skin texture with visible pores, subtle facial asymmetry, natural makeup, no beauty filter, 20-year-old Japanese woman, adult, solo, swimwear fashion photography";
+const NEGATIVE = "anime, cartoon, illustration, drawing, painting, 3d render, cgi, doll, doll face, plastic skin, airbrushed, smooth skin, beauty filter, perfect symmetrical face, generic face, glossy skin, overly sharp, lowres, blurry, bad anatomy, bad hands, extra fingers, deformed face, oversaturated, watermark, text, logo, worst quality, nsfw, nude, child, teenager";
+// 顔立ちは番号から決まる付加要素(パターン数には数えない)。全桁の和で選び、特定の軸と連動しないようにする
+const FACES = [
+  ["丸顔","round face"],
+  ["面長","slightly long oval face"],
+  ["一重まぶた","monolid eyes"],
+  ["奥二重","hooded double eyelids"],
+  ["薄いそばかす","light freckles"],
+  ["目元のほくろ","a small mole near the eye"],
+  ["八重歯","a slightly crooked tooth"],
+  ["太めの自然な眉","thick natural eyebrows"],
+  ["えくぼ","dimples"],
+  ["軽く日焼けした肌","lightly tanned skin"]
+];
 const D = AXES.length, TOTAL = 10 ** D, PER = 20, DL_MAX = 10000;
 
 function digits(n){ // n: 1..TOTAL → 各軸の番号(先頭軸が最上位桁)
@@ -208,26 +222,27 @@ function digits(n){ // n: 1..TOTAL → 各軸の番号(先頭軸が最上位桁)
   for(let k=D-1;k>=0;k--){ idx[k] = i%10; i = Math.floor(i/10); }
   return idx;
 }
-// 年齢は全形式で20歳固定。ChatGPT・Grokはネガティブプロンプト非対応のため、実写限定と除外条件を本文に含める
+// 年齢は全形式で20歳固定。ChatGPT・Grokはネガティブプロンプト非対応のため、実写限定・AI顔対策・除外条件を本文に含める
 const FORMATS = {
-  sd: e=>[QUALITY, ...e].join(", "),
-  gpt: ([swim,color,pool,item,hair,light,expr,pose,comp,cam])=>
-    `Create a photorealistic photograph (real photo only, not illustration, anime, or CGI): a beautiful 20-year-old Japanese woman wearing a ${color} ${swim}, in a tasteful resort swimwear fashion photoshoot.\n`+
+  sd: (e,face)=>[QUALITY, face, ...e].join(", "),
+  gpt: ([swim,color,pool,item,hair,light,expr,pose,comp,cam],face)=>
+    `Create a real, unretouched photograph (real photo only, not illustration, anime, or CGI): a 20-year-old Japanese woman with a natural, distinctive face (${face}) wearing a ${color} ${swim}, in a tasteful resort swimwear photoshoot.\n`+
     `Location: ${pool}. Prop: ${item}. Hairstyle: ${hair}. Lighting: ${light}. Expression: ${expr}. Pose: ${pose}. Composition: ${comp}. Camera: ${cam}.\n`+
-    `Style: realistic photograph, natural skin texture, high detail. No text, watermark, or logos.`,
-  grok: ([swim,color,pool,item,hair,light,expr,pose,comp,cam])=>
-    `Real photograph, photorealistic, of a beautiful 20-year-old Japanese woman wearing a ${color} ${swim}, with ${item}, ${hair}, ${pool}, ${pose}, ${expr}, ${light}, ${comp}, ${cam}. Tasteful resort swimwear fashion shot, natural skin texture, highly detailed, not illustration or CGI, no text or watermark.`,
-  gpt_ja: ([swim,color,pool,item,hair,light,expr,pose,comp,cam])=>
-    `実写の写真を生成してください(イラスト・アニメ・CGは不可):20歳の日本人女性が${color}の${swim}を着た、上品なリゾート水着のファッション撮影。\n`+
+    `Style: candid real photo, natural skin texture with visible pores and slight imperfections, subtle facial asymmetry, natural makeup, no retouching or beauty filter. Do not make an idealized, generic AI-looking face. No text, watermark, or logos.`,
+  grok: ([swim,color,pool,item,hair,light,expr,pose,comp,cam],face)=>
+    `Real candid photograph of a 20-year-old Japanese woman with a natural, distinctive face (${face}), wearing a ${color} ${swim}, with ${item}, ${hair}, ${pool}, ${pose}, ${expr}, ${light}, ${comp}, ${cam}. Unretouched, visible skin pores, subtle facial asymmetry, natural makeup, no beauty filter, not an idealized AI face, not illustration or CGI, no text or watermark.`,
+  gpt_ja: ([swim,color,pool,item,hair,light,expr,pose,comp,cam],face)=>
+    `加工なしの実写写真を生成してください(イラスト・アニメ・CGは不可):自然で個性のある顔立ち(${face})の20歳の日本人女性が${color}の${swim}を着た、上品なリゾート水着の撮影。\n`+
     `場所:${pool}。小物:${item}。髪型:${hair}。光:${light}。表情:${expr}。ポーズ:${pose}。構図:${comp}。カメラ:${cam}。\n`+
-    `スタイル:実写の写真、自然な肌の質感、高精細。文字・透かし・ロゴは入れないでください。`,
-  grok_ja: ([swim,color,pool,item,hair,light,expr,pose,comp,cam])=>
-    `${color}の${swim}を着た20歳の日本人女性の実写写真。小物は${item}、${hair}、${pool}、${pose}、${expr}、${light}、${comp}、${cam}。上品なリゾート水着のファッション写真、自然な肌の質感、高精細、イラストやCGではない実写、文字や透かしなし。`
+    `スタイル:スナップ風の実写、毛穴やわずかな肌のムラが見える自然な肌、顔はわずかに左右非対称、ナチュラルメイク、レタッチや美肌フィルターなし。整いすぎたAIっぽい顔にしないでください。文字・透かし・ロゴは入れないでください。`,
+  grok_ja: ([swim,color,pool,item,hair,light,expr,pose,comp,cam],face)=>
+    `${color}の${swim}を着た、自然で個性のある顔立ち(${face})の20歳の日本人女性の加工なし実写スナップ写真。小物は${item}、${hair}、${pool}、${pose}、${expr}、${light}、${comp}、${cam}。毛穴が見える自然な肌、わずかに左右非対称な顔、ナチュラルメイク、美肌フィルターなし、整いすぎたAI顔ではない、イラストやCGではない実写、文字や透かしなし。`
 };
 let fmt = "sd";
 function build(n){
-  const parts = digits(n).map((j,k)=>AXES[k].items[j]);
-  return {n, en:FORMATS[fmt](parts.map(x=>x[fmt.endsWith("_ja") ? 0 : 1])), ja:parts.map(x=>x[0]).join(" / ")};
+  const idx = digits(n), parts = idx.map((j,k)=>AXES[k].items[j]);
+  const face = FACES[idx.reduce((a,b)=>a+b, 0) % 10], L = fmt.endsWith("_ja") ? 0 : 1;
+  return {n, en:FORMATS[fmt](parts.map(x=>x[L]), face[L]), ja:[...parts, face].map(x=>x[0]).join(" / ")};
 }
 
 const $ = id=>document.getElementById(id);
