@@ -157,15 +157,18 @@
                 <div class="custom-card p-0 position-relative overflow-hidden border border-secondary shadow-lg">
                     <div class="custom-card-header py-2">
                         <div>
-                            <span class="badge bg-danger me-2"><i class="fa-solid fa-gamepad me-1"></i>SIMULATION</span>
-                            <span id="sim-race-title" class="fw-bold fs-6">ウマ娘風 3Dレースシミュレーション</span>
+                            <span class="badge bg-danger me-2"><i class="fa-solid fa-tv me-1"></i>JRA LIVE中継</span>
+                            <span id="sim-race-title" class="fw-bold fs-6">競馬TV中継 ＆ AI馬体3Dシミュレーション</span>
                         </div>
-                        <div class="d-flex gap-1">
+                        <div class="d-flex gap-1 align-items-center">
+                            <button id="btn-record-sim" class="btn btn-outline-danger btn-sm fw-bold">
+                                <i class="fa-solid fa-circle-dot text-danger me-1"></i> AI中継動画を作成
+                            </button>
                             <button id="btn-speed-sim" class="btn btn-outline-warning btn-sm fw-bold">
                                 <span id="sim-speed-text">1.0x</span>
                             </button>
                             <button id="btn-start-sim" class="btn btn-warning btn-sm fw-bold text-dark">
-                                <i class="fa-solid fa-play me-1"></i> スタート
+                                <i class="fa-solid fa-play me-1"></i> 中継開始
                             </button>
                             <button id="btn-reset-sim" class="btn btn-outline-light btn-sm fw-bold">
                                 <i class="fa-solid fa-rotate-left me-1"></i> リセット
@@ -173,48 +176,80 @@
                         </div>
                     </div>
 
+                    <!-- TV Broadcast Corner HUD & Camera Controls -->
+                    <div class="px-3 py-2 bg-black bg-opacity-95 d-flex flex-wrap align-items-center justify-content-between border-bottom border-secondary gap-2">
+                        <!-- Corner Tracking Switcher / Status -->
+                        <div class="d-flex align-items-center gap-1 flex-wrap">
+                            <span class="badge bg-primary text-white fs-8"><i class="fa-solid fa-satellite-dish me-1"></i>中継ポイント:</span>
+                            <div class="btn-group btn-group-sm" role="group" id="corner-track-badges">
+                                <span id="stage-start" class="badge bg-warning text-dark border">スタート</span>
+                                <span id="stage-backstretch" class="badge bg-dark border text-white-50">向正面</span>
+                                <span id="stage-corner3" class="badge bg-dark border text-white-50">第3コーナー</span>
+                                <span id="stage-corner4" class="badge bg-dark border text-white-50">第4コーナー</span>
+                                <span id="stage-straight" class="badge bg-dark border text-white-50">最後の直線</span>
+                                <span id="stage-finish" class="badge bg-dark border text-white-50">ゴール</span>
+                            </div>
+                        </div>
+
+                        <!-- 3D Camera Controls -->
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="text-warning-emphasis fw-bold fs-8"><i class="fa-solid fa-video me-1"></i>カメラ:</span>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" id="btn-cam-broadcast" class="btn btn-warning active fw-bold fs-8">TV中継(自動)</button>
+                                <button type="button" id="btn-cam-corner" class="btn btn-outline-warning fw-bold fs-8">コーナー固定</button>
+                                <button type="button" id="btn-cam-chase" class="btn btn-outline-warning fw-bold fs-8">先頭追従</button>
+                                <button type="button" id="btn-cam-top" class="btn btn-outline-warning fw-bold fs-8">俯瞰(上空)</button>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="position-relative bg-dark p-0 text-center overflow-hidden">
-                        <!-- Top Progress Bar -->
-                        <div class="position-absolute top-0 start-0 end-0 p-2 z-3 bg-black bg-opacity-75 d-flex align-items-center px-3">
-                            <span class="badge bg-danger fw-bold fs-8 me-2">GOAL</span>
-                            <div class="flex-grow-1 position-relative mx-2" style="height: 10px; background: rgba(255,255,255,0.2); border-radius: 5px;">
-                                <div id="top-progress-fill" style="width: 0%; height: 100%; background: linear-gradient(90deg, #ff416c, #ff4b2b); border-radius: 5px;"></div>
-                                <div id="top-horses-track" class="position-absolute top-50 start-0 w-100 translate-middle-y"></div>
+                        <!-- TV Broadcast Watermark & Live Corner Banner -->
+                        <div class="position-absolute top-0 start-0 m-3 z-3 d-flex align-items-center gap-2" style="pointer-events: none;">
+                            <div class="badge bg-danger bg-opacity-90 px-3 py-1 fs-7 fw-bold d-flex align-items-center gap-1 shadow">
+                                <span class="spinner-grow spinner-grow-sm text-white" style="width: 8px; height: 8px;"></span>
+                                <span>LIVE</span>
                             </div>
-                            <span class="badge bg-primary fw-bold fs-8 ms-2">START</span>
-                        </div>
-
-                        <!-- Canvas -->
-                        <canvas id="race-canvas" width="800" height="400"></canvas>
-
-                        <!-- Left Live Top 5 Leaderboard Overlay -->
-                        <div class="position-absolute top-0 start-0 m-2 mt-5 z-3 text-start" style="pointer-events: none; width: 170px;">
-                            <div class="bg-black bg-opacity-80 p-2 rounded-3 border border-secondary shadow backdrop-blur">
-                                <div class="text-warning fw-bold fs-8 mb-1 pb-1 border-bottom border-secondary d-flex justify-content-between">
-                                    <span><i class="fa-solid fa-ranking-star me-1"></i>順位 (Live)</span>
-                                    <span id="sim-running-phase" class="badge bg-danger fs-8">序盤</span>
-                                </div>
-                                <div id="sim-top5-leaderboard" class="d-flex flex-column gap-1 font-monospace"></div>
+                            <div id="tv-corner-banner" class="badge bg-black bg-opacity-75 border border-warning text-warning px-3 py-1 fs-7 fw-bold shadow">
+                                ゲートオープン
                             </div>
                         </div>
+
+                        <!-- Top Distance & Mini Track -->
+                        <div class="position-absolute top-0 end-0 m-2 mt-3 z-3 px-3 py-1 bg-black bg-opacity-80 rounded-pill border border-secondary text-white small" style="pointer-events: none;">
+                            <span class="text-warning fw-bold me-2"><i class="fa-solid fa-flag-checkered me-1"></i>残り: <span id="sim-distance-left">1600m</span></span>
+                            <span class="text-white-50 font-monospace" id="sim-timer">00:00.0</span>
+                        </div>
+
+                        <!-- Canvas for 3D AI Horse Rendering -->
+                        <canvas id="race-canvas" width="800" height="420"></canvas>
 
                         <!-- Skill Notice Banner Overlay -->
                         <div id="sim-skill-popup" class="position-absolute top-0 end-0 m-3 mt-5 z-3 d-none">
                             <div class="bg-black bg-opacity-90 text-warning fw-bold px-3 py-2 rounded-4 shadow-lg border border-warning d-flex align-items-center gap-2">
                                 <span class="badge bg-warning text-dark rounded-circle p-2"><i class="fa-solid fa-bolt fs-6"></i></span>
                                 <div>
-                                    <div id="sim-skill-title" class="fs-8 text-white-50">ウマ娘固有スキル発動！</div>
-                                    <div id="sim-skill-text" class="fs-7 text-warning fw-bold">【固有スキル】全開スパート発動！</div>
+                                    <div id="sim-skill-title" class="fs-8 text-white-50">末脚スパート</div>
+                                    <div id="sim-skill-text" class="fs-7 text-warning fw-bold">【固有スキル】ラストスパート発動！</div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Timer Overlay -->
-                        <div class="position-absolute bottom-0 end-0 m-2 z-3 p-2 bg-black bg-opacity-75 rounded-3 border border-secondary text-end small" style="pointer-events: none;">
-                            <div class="text-warning fw-bold fs-8 mb-0"><i class="fa-solid fa-stopwatch me-1"></i>タイム</div>
-                            <div class="fs-5 fw-bold font-monospace text-white" id="sim-timer">00:00.0</div>
-                            <div class="text-info fs-8 fw-bold" id="sim-leader-name">先頭: ----</div>
+                        <!-- リアルタイム位置取りバー (映像の中の下に番号をリアルタイム表示) -->
+                        <div class="position-absolute bottom-0 start-0 end-0 z-3 p-2 bg-gradient" style="background: linear-gradient(0deg, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.7) 70%, transparent 100%); pointer-events: none;">
+                            <div class="d-flex align-items-center justify-content-between px-2 mb-1">
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="badge bg-warning text-dark fw-bold fs-8"><i class="fa-solid fa-list-ol me-1"></i>リアルタイム位置取り</span>
+                                    <span class="text-white-50 fs-8">← 先頭 (内〜外) ───────── 後方 →</span>
+                                </div>
+                                <div id="sim-leader-name" class="text-warning fw-bold fs-8">先頭: ----</div>
+                            </div>
+                            <!-- Realtime Horses Number Sequence Strip -->
+                            <div id="sim-bottom-position-bar" class="d-flex align-items-center gap-1 overflow-hidden px-2 py-1 bg-black bg-opacity-80 rounded-2 border border-secondary shadow-sm font-monospace" style="min-height: 38px;">
+                                <span class="text-white-50 small">中継開始待ち...</span>
+                            </div>
                         </div>
+
                     </div>
 
                     <!-- Commentary Box -->
@@ -309,6 +344,8 @@
         </div>
     </main>
 
+    <!-- Three.js 3D WebGL Engine -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/static/app.js"></script>
