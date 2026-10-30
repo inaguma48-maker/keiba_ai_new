@@ -202,7 +202,7 @@ const AXES = [
 // 「AI顔」対策:理想化する語(beautiful, 8k等)を避け、加工なしの肌・顔の左右差・個別の顔立ちを指定する
 const QUALITY = "RAW photo, real candid photograph, photorealistic, unretouched, natural skin texture with visible pores, subtle facial asymmetry, natural makeup, no beauty filter, 20-year-old Japanese woman, adult, solo, swimwear fashion photography";
 const NEGATIVE = "anime, cartoon, illustration, drawing, painting, 3d render, cgi, doll, doll face, plastic skin, airbrushed, smooth skin, beauty filter, perfect symmetrical face, generic face, glossy skin, overly sharp, lowres, blurry, bad anatomy, bad hands, extra fingers, deformed face, oversaturated, watermark, text, logo, worst quality, nsfw, nude, child, teenager";
-// 顔立ちは番号から決まる付加要素(パターン数には数えない)。全桁の和で選び、特定の軸と連動しないようにする
+// 顔立ちは番号から決まる付加要素(パターン数には数えない)。2つ選び、特定の軸と連動しないよう全桁の和を基準にする
 const FACES = [
   ["丸顔","round face"],
   ["面長","slightly long oval face"],
@@ -229,20 +229,28 @@ const FORMATS = {
     `Create a real, unretouched photograph (real photo only, not illustration, anime, or CGI): a 20-year-old Japanese woman with a natural, distinctive face (${face}) wearing a ${color} ${swim}, in a tasteful resort swimwear photoshoot.\n`+
     `Location: ${pool}. Prop: ${item}. Hairstyle: ${hair}. Lighting: ${light}. Expression: ${expr}. Pose: ${pose}. Composition: ${comp}. Camera: ${cam}.\n`+
     `Style: candid real photo, natural skin texture with visible pores and slight imperfections, subtle facial asymmetry, natural makeup, no retouching or beauty filter. Do not make an idealized, generic AI-looking face. No text, watermark, or logos.`,
+  // Grokは長文・否定表現だと既定の顔に戻りやすいため、顔を先頭に置き、短く肯定形だけで書く
   grok: ([swim,color,pool,item,hair,light,expr,pose,comp,cam],face)=>
-    `Real candid photograph of a 20-year-old Japanese woman with a natural, distinctive face (${face}), wearing a ${color} ${swim}, with ${item}, ${hair}, ${pool}, ${pose}, ${expr}, ${light}, ${comp}, ${cam}. Unretouched, visible skin pores, subtle facial asymmetry, natural makeup, no beauty filter, not an idealized AI face, not illustration or CGI, no text or watermark.`,
+    `Candid vacation snapshot of a 20-year-old Japanese woman with ${face}, ${hair}, wearing a ${color} ${swim}, ${pose} at ${pool}, with ${item}, ${expr}. ${light[0].toUpperCase()+light.slice(1)}, ${comp}, ${cam}. Real photo, natural skin with visible pores, slightly asymmetrical face, natural makeup.`,
   gpt_ja: ([swim,color,pool,item,hair,light,expr,pose,comp,cam],face)=>
     `加工なしの実写写真を生成してください(イラスト・アニメ・CGは不可):自然で個性のある顔立ち(${face})の20歳の日本人女性が${color}の${swim}を着た、上品なリゾート水着の撮影。\n`+
     `場所:${pool}。小物:${item}。髪型:${hair}。光:${light}。表情:${expr}。ポーズ:${pose}。構図:${comp}。カメラ:${cam}。\n`+
     `スタイル:スナップ風の実写、毛穴やわずかな肌のムラが見える自然な肌、顔はわずかに左右非対称、ナチュラルメイク、レタッチや美肌フィルターなし。整いすぎたAIっぽい顔にしないでください。文字・透かし・ロゴは入れないでください。`,
   grok_ja: ([swim,color,pool,item,hair,light,expr,pose,comp,cam],face)=>
-    `${color}の${swim}を着た、自然で個性のある顔立ち(${face})の20歳の日本人女性の加工なし実写スナップ写真。小物は${item}、${hair}、${pool}、${pose}、${expr}、${light}、${comp}、${cam}。毛穴が見える自然な肌、わずかに左右非対称な顔、ナチュラルメイク、美肌フィルターなし、整いすぎたAI顔ではない、イラストやCGではない実写、文字や透かしなし。`
+    `顔立ちは${face}の20歳の日本人女性の旅行スナップ写真。${hair}、${color}の${swim}、${pool}で${pose}、小物は${item}、${expr}。${light}、${comp}、${cam}。毛穴の見える自然な肌、少し左右非対称な顔、ナチュラルメイクの実写。`
 };
 let fmt = "sd";
+function pickFaces(idx){
+  const a = idx.reduce((s,d)=>s+d, 0) % 10;
+  let b = (a + 1 + idx[D-1] % 9) % 10; // aとは必ず別の特徴
+  if(a < 4 && Math.floor(a/2) === Math.floor(b/2)) b = (b + 2) % 10; // 丸顔/面長、一重/奥二重の矛盾を避ける
+  return [FACES[a], FACES[b]];
+}
 function build(n){
   const idx = digits(n), parts = idx.map((j,k)=>AXES[k].items[j]);
-  const face = FACES[idx.reduce((a,b)=>a+b, 0) % 10], L = fmt.endsWith("_ja") ? 0 : 1;
-  return {n, en:FORMATS[fmt](parts.map(x=>x[L]), face[L]), ja:[...parts, face].map(x=>x[0]).join(" / ")};
+  const f = pickFaces(idx), L = fmt.endsWith("_ja") ? 0 : 1;
+  const face = L ? `${f[0][1]} and ${f[1][1]}` : `${f[0][0]}・${f[1][0]}`;
+  return {n, en:FORMATS[fmt](parts.map(x=>x[L]), face), ja:[...parts.map(x=>x[0]), `${f[0][0]}・${f[1][0]}`].join(" / ")};
 }
 
 const $ = id=>document.getElementById(id);
