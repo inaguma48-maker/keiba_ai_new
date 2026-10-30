@@ -202,19 +202,27 @@ const AXES = [
 // 「AI顔」対策:理想化する語(beautiful, 8k等)を避け、加工なしの肌・顔の左右差・個別の顔立ちを指定する
 const QUALITY = "RAW photo, real candid photograph, photorealistic, unretouched, natural skin texture with visible pores, subtle facial asymmetry, natural makeup, no beauty filter, 20-year-old Japanese woman, adult, solo, swimwear fashion photography";
 const NEGATIVE = "anime, cartoon, illustration, drawing, painting, 3d render, cgi, doll, doll face, plastic skin, airbrushed, smooth skin, beauty filter, perfect symmetrical face, generic face, glossy skin, overly sharp, lowres, blurry, bad anatomy, bad hands, extra fingers, deformed face, oversaturated, watermark, text, logo, worst quality, nsfw, nude, child, teenager";
-// 顔立ちは番号から決まる付加要素(パターン数には数えない)。2つ選び、特定の軸と連動しないよう全桁の和を基準にする
-const FACES = [
-  ["丸顔","round face"],
-  ["面長","slightly long oval face"],
-  ["一重まぶた","monolid eyes"],
-  ["奥二重","hooded double eyelids"],
-  ["薄いそばかす","light freckles"],
-  ["目元のほくろ","a small mole near the eye"],
-  ["八重歯","a slightly crooked tooth"],
-  ["太めの自然な眉","thick natural eyebrows"],
-  ["えくぼ","dimples"],
-  ["軽く日焼けした肌","lightly tanned skin"]
+// 顔立ちは番号から決まる付加要素(パターン数には数えない)。Grok等が既定の顔に戻らないよう、6要素+架空の名前で具体的に指定する
+const FACE_PARTS = [
+  [["丸顔","round face"],["卵型の顔","oval face"],["ハート型の顔","heart-shaped face"],["エラの張った顔","square jawline"],["面長","long face"]],
+  [["切れ長の一重","narrow monolid eyes"],["奥二重","hooded double eyelids"],["大きな丸い二重","large round double-lidded eyes"],["たれ目","downturned droopy eyes"],["つり目","upturned cat-like eyes"],["離れ気味の目","wide-set eyes"]],
+  [["小さな丸い鼻","small button nose"],["細く通った鼻","straight narrow nose"],["少し横に広い鼻","slightly wide nose"],["丸い鼻先","rounded nose tip"]],
+  [["薄い唇","thin lips"],["ふっくらした唇","full lips"],["小さな口","small mouth"],["横に広い口","wide mouth"]],
+  [["太い平行眉","thick straight eyebrows"],["細いアーチ眉","thin arched eyebrows"],["柔らかい自然な眉","soft natural eyebrows"],["濃いはっきりした眉","bold dark eyebrows"]],
+  [["薄いそばかす","light freckles"],["目元のほくろ","a small mole near the eye"],["頬のほくろ","a mole on the cheek"],["えくぼ","dimples"],["八重歯","a slightly crooked tooth"],["軽く日焼けした肌","lightly tanned skin"],["色白の肌","fair skin"],["赤みのある頬","naturally rosy cheeks"]]
 ];
+const SURNAMES = [["佐藤","Sato"],["鈴木","Suzuki"],["高橋","Takahashi"],["田中","Tanaka"],["伊藤","Ito"],["渡辺","Watanabe"],["山本","Yamamoto"],["中村","Nakamura"],["小林","Kobayashi"],["加藤","Kato"],["吉田","Yoshida"],["山田","Yamada"],["佐々木","Sasaki"],["松本","Matsumoto"],["井上","Inoue"],["木村","Kimura"],["林","Hayashi"],["清水","Shimizu"],["森","Mori"],["池田","Ikeda"]];
+const GIVEN = [["あおい","Aoi"],["ゆな","Yuna"],["みお","Mio"],["さき","Saki"],["りん","Rin"],["ひな","Hina"],["めい","Mei"],["ななみ","Nanami"],["はるか","Haruka"],["かほ","Kaho"],["りこ","Riko"],["さな","Sana"],["ゆい","Yui"],["みゆ","Miyu"],["あかり","Akari"],["ほのか","Honoka"],["なつき","Natsuki"],["かのん","Kanon"],["ちひろ","Chihiro"],["えみ","Emi"]];
+function hash(n, salt){ // 番号→32bit値。各要素を軸の桁と無関係にばらけさせる
+  let h = Math.imul((n % 4294967296) ^ Math.floor(n / 4294967296), 2654435761) ^ Math.imul(salt + 1, 2246822519);
+  h = Math.imul(h ^ (h >>> 15), 2246822519); h = Math.imul(h ^ (h >>> 13), 3266489917);
+  return (h ^ (h >>> 16)) >>> 0;
+}
+function makeFace(n){
+  const f = FACE_PARTS.map((list,k)=>list[hash(n,k) % list.length]);
+  const sn = SURNAMES[hash(n,10) % SURNAMES.length], gn = GIVEN[hash(n,11) % GIVEN.length];
+  return {f, nameEn:`${gn[1]} ${sn[1]}`, nameJa:`${sn[0]}${gn[0]}`};
+}
 const D = AXES.length, TOTAL = 10 ** D, PER = 20, DL_MAX = 10000;
 
 function digits(n){ // n: 1..TOTAL → 各軸の番号(先頭軸が最上位桁)
@@ -224,33 +232,28 @@ function digits(n){ // n: 1..TOTAL → 各軸の番号(先頭軸が最上位桁)
 }
 // 年齢は全形式で20歳固定。ChatGPT・Grokはネガティブプロンプト非対応のため、実写限定・AI顔対策・除外条件を本文に含める
 const FORMATS = {
-  sd: (e,face)=>[QUALITY, face, ...e].join(", "),
-  gpt: ([swim,color,pool,item,hair,light,expr,pose,comp,cam],face)=>
-    `Create a real, unretouched photograph (real photo only, not illustration, anime, or CGI): a 20-year-old Japanese woman with a natural, distinctive face (${face}) wearing a ${color} ${swim}, in a tasteful resort swimwear photoshoot.\n`+
+  sd: (e,face,name)=>[QUALITY, name, face, ...e].join(", "),
+  gpt: ([swim,color,pool,item,hair,light,expr,pose,comp,cam],face,name)=>
+    `Create a real, unretouched photograph (real photo only, not illustration, anime, or CGI): ${name}, a 20-year-old Japanese woman with a distinctive face: ${face}. She wears a ${color} ${swim} in a tasteful resort swimwear photoshoot.\n`+
     `Location: ${pool}. Prop: ${item}. Hairstyle: ${hair}. Lighting: ${light}. Expression: ${expr}. Pose: ${pose}. Composition: ${comp}. Camera: ${cam}.\n`+
     `Style: candid real photo, natural skin texture with visible pores and slight imperfections, subtle facial asymmetry, natural makeup, no retouching or beauty filter. Do not make an idealized, generic AI-looking face. No text, watermark, or logos.`,
   // Grokは長文・否定表現だと既定の顔に戻りやすいため、顔を先頭に置き、短く肯定形だけで書く
-  grok: ([swim,color,pool,item,hair,light,expr,pose,comp,cam],face)=>
-    `Candid vacation snapshot of a 20-year-old Japanese woman with ${face}, ${hair}, wearing a ${color} ${swim}, ${pose} at ${pool}, with ${item}, ${expr}. ${light[0].toUpperCase()+light.slice(1)}, ${comp}, ${cam}. Real photo, natural skin with visible pores, slightly asymmetrical face, natural makeup.`,
-  gpt_ja: ([swim,color,pool,item,hair,light,expr,pose,comp,cam],face)=>
-    `加工なしの実写写真を生成してください(イラスト・アニメ・CGは不可):自然で個性のある顔立ち(${face})の20歳の日本人女性が${color}の${swim}を着た、上品なリゾート水着の撮影。\n`+
+  grok: ([swim,color,pool,item,hair,light,expr,pose,comp,cam],face,name)=>
+    `Candid vacation snapshot of ${name}, a 20-year-old Japanese woman with ${face}, ${hair}. She wears a ${color} ${swim}, ${pose} at ${pool}, with ${item}, ${expr}. ${light[0].toUpperCase()+light.slice(1)}, ${comp}, ${cam}. Real photo, natural skin with visible pores, slightly asymmetrical face, natural makeup.`,
+  gpt_ja: ([swim,color,pool,item,hair,light,expr,pose,comp,cam],face,name)=>
+    `加工なしの実写写真を生成してください(イラスト・アニメ・CGは不可):20歳の日本人女性「${name}」。顔立ちは${face}。${color}の${swim}を着た、上品なリゾート水着の撮影。\n`+
     `場所:${pool}。小物:${item}。髪型:${hair}。光:${light}。表情:${expr}。ポーズ:${pose}。構図:${comp}。カメラ:${cam}。\n`+
     `スタイル:スナップ風の実写、毛穴やわずかな肌のムラが見える自然な肌、顔はわずかに左右非対称、ナチュラルメイク、レタッチや美肌フィルターなし。整いすぎたAIっぽい顔にしないでください。文字・透かし・ロゴは入れないでください。`,
-  grok_ja: ([swim,color,pool,item,hair,light,expr,pose,comp,cam],face)=>
-    `顔立ちは${face}の20歳の日本人女性の旅行スナップ写真。${hair}、${color}の${swim}、${pool}で${pose}、小物は${item}、${expr}。${light}、${comp}、${cam}。毛穴の見える自然な肌、少し左右非対称な顔、ナチュラルメイクの実写。`
+  grok_ja: ([swim,color,pool,item,hair,light,expr,pose,comp,cam],face,name)=>
+    `20歳の日本人女性「${name}」の旅行スナップ写真。顔立ちは${face}。${hair}、${color}の${swim}、${pool}で${pose}、小物は${item}、${expr}。${light}、${comp}、${cam}。毛穴の見える自然な肌、少し左右非対称な顔、ナチュラルメイクの実写。`
 };
 let fmt = "sd";
-function pickFaces(idx){
-  const a = idx.reduce((s,d)=>s+d, 0) % 10;
-  let b = (a + 1 + idx[D-1] % 9) % 10; // aとは必ず別の特徴
-  if(a < 4 && Math.floor(a/2) === Math.floor(b/2)) b = (b + 2) % 10; // 丸顔/面長、一重/奥二重の矛盾を避ける
-  return [FACES[a], FACES[b]];
-}
 function build(n){
-  const idx = digits(n), parts = idx.map((j,k)=>AXES[k].items[j]);
-  const f = pickFaces(idx), L = fmt.endsWith("_ja") ? 0 : 1;
-  const face = L ? `${f[0][1]} and ${f[1][1]}` : `${f[0][0]}・${f[1][0]}`;
-  return {n, en:FORMATS[fmt](parts.map(x=>x[L]), face), ja:[...parts.map(x=>x[0]), `${f[0][0]}・${f[1][0]}`].join(" / ")};
+  const parts = digits(n).map((j,k)=>AXES[k].items[j]);
+  const fc = makeFace(n), L = fmt.endsWith("_ja") ? 0 : 1;
+  const face = L ? fc.f.map(x=>x[1]).join(", ") : fc.f.map(x=>x[0]).join("・");
+  return {n, en:FORMATS[fmt](parts.map(x=>x[L]), face, L ? fc.nameEn : fc.nameJa),
+    ja:[...parts.map(x=>x[0]), `${fc.nameJa}(${fc.f.map(x=>x[0]).join("・")})`].join(" / ")};
 }
 
 const $ = id=>document.getElementById(id);
